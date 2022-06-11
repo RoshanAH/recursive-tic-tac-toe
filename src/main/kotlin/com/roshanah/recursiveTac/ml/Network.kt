@@ -1,353 +1,301 @@
 package com.roshanah.recursiveTac.ml
 
-import java.lang.IllegalArgumentException
+import java.math.BigDecimal
+import java.math.MathContext
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-class Network internal constructor(inputs: List<() -> Double>, network: CompressedNetwork) {
-    val inputs: List<Node>
-    val outputs: List<Node>
-    val layers: List<List<Node>>
+typealias List1d = List<Double>
+typealias List2d = List<List1d>
+typealias List3d = List<List2d>
 
-
-    private fun requireDimensions(inputs: Int, hiddenLayers: Int, hiddenNodes: Int, outputs: Int) {
-        if (hiddenNodes == 0) require(hiddenLayers == 0) { "Cannot have empty hidden layers" }
-        require(inputs > 0) { "Network must have at least 1 input" }
-        require(outputs > 0) { "Network must have at least 1 output" }
-    }
-
-
-    val compressed get() = CompressedNetwork(
-        inputs.size,
-        layers.size,
-        if (layers.isEmpty()) 0 else layers[0].size,
-        outputs.size,
-        buildList {
-            for (l in layers) {
-                for (n in l) {
-                    add(CompressedNetwork.Component(n.bias, n.receivers.map { it.weight }))
-                }
-            }
-
-            for (n in outputs) {
-                add(CompressedNetwork.Component(n.bias, n.receivers.map { it.weight }))
-            }
-        })
-
-    val zero get() = CompressedNetwork(
-        inputs.size,
-        layers.size,
-        if (layers.isEmpty()) 0 else layers[0].size,
-        outputs.size,
-        buildList{
-            for (l in layers) {
-                for (n in l) {
-                    add(CompressedNetwork.Component(0.0, n.receivers.map { 0.0 }))
-                }
-            }
-
-            for (n in outputs) {
-                add(CompressedNetwork.Component(0.0, n.receivers.map { 0.0 }))
-            }
-        }
-    )
-
-    val one get() = CompressedNetwork(
-        inputs.size,
-        layers.size,
-        if (layers.isEmpty()) 0 else layers[0].size,
-        outputs.size,
-        buildList{
-            for (l in layers) {
-                for (n in l) {
-                    add(CompressedNetwork.Component(1.0, n.receivers.map { 1.0 }))
-                }
-            }
-
-            for (n in outputs) {
-                add(CompressedNetwork.Component(1.0, n.receivers.map { 1.0 }))
-            }
-        }
-    )
-
-
-
-    override fun toString() = compressed.toString()
-
-//    fun formattedString() {
-//
-//    }
-
-    fun descend(gradient: CompressedNetwork, step: Double, inputs: List<() -> Double>) = (compressed - gradient * step).extract(inputs)
-    fun descend(gradient: CompressedNetwork, step: Double) = (compressed - gradient * step)
-
-    fun computeGradient(key: List<Double?>): CompressedNetwork {
-        require(key.size == outputs.size) { "Key size does not match with output size" }
-        val subGradients = outputs.mapIndexed{ i, output ->
-            val outputKey = key[i]
-            if(outputKey == null) output.zeroGradient()
-            else output.computeGradient().map { it * (output.fire() - outputKey) }
-        }
-
-
-
-        return CompressedNetwork(inputs.size, layers.size, if(layers.isEmpty()) 0 else layers[0].size, outputs.size, buildList {
-            val first = subGradients[0]
-            var sum = first.subList(0, first.size - 1)
-            for(i in 1 until subGradients.size){
-                val it = subGradients[i]
-                sum = it.subList(0, it.size - 1).mapIndexed { j, it ->
-                    sum[j] + it
-                }
-            }
-
-            addAll(sum)
-
-            subGradients.forEach {
-                add(it.last())
-            }
-        })
-    }
-
-    private fun reset() {
-        inputs.forEach { it.reset() }
-        outputs.forEach { it.reset() }
-        layers.forEach { list -> list.forEach { node -> node.reset() } }
-    }
-
-    fun fire(): List<Double> {
-        reset()
-        return outputs.map { it.fire() }
-    }
+class Network(val network: List3d) {
+    val inputs: Int
+    val layers: Int
+    val nodes: Int
+    val outputs: Int
 
     init {
-        requireDimensions(inputs.size, network.layers, network.layerNodes, network.outputs)
-        require(inputs.size == network.inputs) { "Input size does not match compressed network input size" }
-        this.inputs = inputs.map { Node(it) }
-        layers = if (network.layers > 0) buildList {
-            add(buildList {
-                for (i in 0 until network.layerNodes) {
-                    add(Node(network[i].bias,
-                        this@Network.inputs.mapIndexed { j, it ->
-                            Connection(network[i].weights[j], it)
-                        }
-                    ))
+        require(network.size >= 2) {
+            "Network format error: network must have at least an input and output layer"
+        }
+
+        require(network.all { it.isNotEmpty() }) {
+            "Network format error: each layer must have at least one node"
+        }
+
+//        Checking the number of the first node's weights excluding the bias
+        inputs = network[0][0].size - 1
+        require(inputs >= 1) {
+            "Network format error: input size $inputs must be at least 1"
+        }
+//        All the layers excluding the output layers
+        layers = network.size - 1
+//        Checking the number of the first output node's weights excluding the bias
+        nodes = if (layers == 0) 0 else network.last()[0].size - 1
+//        Checking the length of the last layer
+        outputs = network.last().size
+        require(outputs >= 1) {
+            "Network format error: output size $outputs must be at least 1"
+        }
+
+
+        for (j in network[0].indices) {
+            val node = network[0][j]
+            require(node.size - 1 == inputs) {
+                "Network format error: input size ${node.size - 1} does not match with $inputs"
+            }
+        }
+
+        for (i in 1 until network.size) {
+            for (j in 1 until network[i].size) {
+                val node = network[i][j]
+                require(node.size - 1 == nodes) {
+                    "Network format error: node size ${node.size - 1} does not match with $nodes"
                 }
-            })
-
-            for (i in 1 until network.layers) {
-                val last = last()
-                add(buildList {
-                    for (j in 0 until network.layerNodes) {
-                        val component = network[i * network.layerNodes + j]
-                        add(Node(component.bias,
-                            last.mapIndexed { k, it ->
-                                Connection(component.weights[k], it)
-                            }
-                        ))
-                    }
-                })
-            }
-
-        } else emptyList()
-        outputs = if (layers.isNotEmpty()) buildList {
-            for (i in 0 until network.outputs) {
-                val component = network[network.layers * network.layerNodes + i]
-                add(Node(component.bias,
-                    layers.last().mapIndexed { j, it ->
-                        Connection(component.weights[j], it)
-                    }
-                ))
-            }
-        } else buildList {
-            for (i in 0 until network.outputs) {
-                val component = network[network.layers * network.layerNodes + i]
-                add(Node(component.bias,
-                    this@Network.inputs.mapIndexed { j, it ->
-                        Connection(component.weights[j], it)
-                    }
-                ))
             }
         }
     }
 
-}
-
-class CompressedNetwork(
-    val inputs: Int,
-    val layers: Int,
-    val layerNodes: Int,
-    val outputs: Int,
-    private val components: List<Component>
-) : Collection<CompressedNetwork.Component> {
-
-    data class Component(val bias: Double, val weights: List<Double>) {
-        operator fun plus(other: Component): Component {
-            require(weights.size == other.weights.size) { "Layer sizes ${weights.size} and ${other.weights.size} are different" }
-            return Component(bias + other.bias, weights.mapIndexed { i, it ->
-                it + other.weights[i]
-            })
+    fun fire(inputs: List1d): List2d = buildList {
+        require(inputs.size == this@Network.inputs){
+            "Input size ${inputs.size} does not match network input size ${this@Network.inputs}"
         }
-
-        operator fun minus(other: Component): Component {
-            require(weights.size == other.weights.size) { "Layer sizes ${weights.size} and ${other.weights.size} are different" }
-            return Component(bias - other.bias, weights.mapIndexed { i, it ->
-                it - other.weights[i]
-            })
-        }
-
-        operator fun times(scale: Number) =
-            Component(bias * scale.toDouble(), weights.map { it * scale.toDouble() })
-
-        operator fun div(divisor: Number) = this * (1.0 / divisor.toDouble())
-
-        override fun toString(): String {
-            var out = "$bias["
-            weights.forEach { out += "$it," }
-            return "$out]"
+        add(inputs.map { it.coerceAtLeast(0.0) } + 1.0)
+        for (i in 0 until network.size - 1) {
+            add(network[i] * (this[i] + 1.0).map { it.coerceAtLeast(0.0) })
         }
     }
-
-    companion object {
-        fun deserialize(serial: String): CompressedNetwork {
-            val serial = serial.filter { !it.isWhitespace() }
-            val dimensions = (
-                    """(?<=\().*(?=\))""".toRegex().find(serial)
-                        ?: throw IllegalArgumentException("Invalid network serial format: Cannot find dimensions")
-                    ).value.split(",").map { it.toInt() }
-            require(dimensions.size == 4) { "Invalid network serial format: Incorrect amount of dimensions" }
-
-
-            val components = buildList {
-                ("""(?<=\)\[).*(?=,])""".toRegex().find(serial)
-                    ?: throw IllegalArgumentException("Invalid serial network format: Cannot find nodes in $serial")
-                        ).value.split("""(?<=]),""".toRegex()).forEach {
-                        add(
-                            Component(
-                                ("""[\d|.]+(?=\[)""".toRegex().find(it)
-                                    ?: throw IllegalArgumentException("Invalid network serial format: Cannot find bias in $it")
-                                        ).value.toDouble(),
-                                ("""(?<=\[).*(?=,])""".toRegex().find(it)
-                                    ?: throw IllegalArgumentException("Invalid network serial format: Cannot find weights in $it")
-                                        ).value.split(",").map { it.toDouble() }
-                            )
-                        )
-                    }
-            }
-            return CompressedNetwork(dimensions[0], dimensions[1], dimensions[2], dimensions[3], components)
-        }
-
-        fun zero(inputs: Int, layers: Int, nodes: Int, outputs: Int) = CompressedNetwork(
-            inputs,
-            layers,
-            if (layers == 0) 0 else nodes,
-            outputs,
-            buildList {
-                for (n in 0 until nodes) {
-                    add(Component(0.0, (0 until inputs).map { 0.0 }))
-                }
-                for (l in 1 until layers) {
-                    for (n in 0 until nodes) {
-                        add(Component(0.0, (0 until nodes).map { 0.0 }))
-                    }
-                }
-                for (n in 0 until outputs) {
-                    add(Component(0.0, (0 until if(layers == 0 ) inputs else nodes).map { 0.0 }))
-                }
-            })
-
-        fun one(inputs: Int, layers: Int, nodes: Int, outputs: Int) = CompressedNetwork(
-            inputs,
-            layers,
-            if (layers == 0) 0 else nodes,
-            outputs,
-            buildList {
-                for (n in 0 until nodes) {
-                    add(Component(1.0, (0 until inputs).map { 1.0 }))
-                }
-                for (l in 1 until layers) {
-                    for (n in 0 until nodes) {
-                        add(Component(1.0, (0 until nodes).map { 1.0 }))
-                    }
-                }
-                for (n in 0 until outputs) {
-                    add(Component(1.0, (0 until if(layers == 0 ) inputs else nodes).map { 1.0 }))
-                }
-            })
-
-        fun random(inputs: Int, layers: Int, nodes: Int, outputs: Int) = CompressedNetwork(
-            inputs,
-            layers,
-            if (layers == 0) 0 else nodes,
-            outputs,
-            buildList {
-                for (n in 0 until nodes) {
-                    add(Component(Math.random() / sqrt(nodes.toDouble()), (0 until inputs).map { Math.random() / sqrt(nodes.toDouble()) }))
-                }
-                for (l in 1 until layers) {
-                    for (n in 0 until nodes) {
-                        add(Component(Math.random() / sqrt(nodes.toDouble()), (0 until nodes).map { Math.random() / sqrt(nodes.toDouble())}))
-                    }
-                }
-                for (n in 0 until outputs) {
-                    add(Component(Math.random() / sqrt(outputs.toDouble()), (0 until if(layers == 0 ) inputs else nodes).map { Math.random() / sqrt(outputs.toDouble()) }))
-                }
-            })
-
-    }
-
-    private fun requireDimensions(other: CompressedNetwork) = require(
-        size == other.size &&
-                inputs == other.inputs &&
-                layers == other.layers &&
-                layerNodes == other.layerNodes &&
-                outputs == other.outputs
-    ) {
-        "Compressed network dimensions do not match"
-    }
-
-    fun extract(inputs: List<() -> Double>) = Network(inputs, this)
-
-    operator fun plus(other: CompressedNetwork): CompressedNetwork {
-        requireDimensions(other)
-        return CompressedNetwork(inputs, layers, layerNodes, outputs, mapIndexed { i, it -> it + other[i] })
-    }
-
-    operator fun minus(other: CompressedNetwork): CompressedNetwork {
-        requireDimensions(other)
-        return CompressedNetwork(inputs, layers, layerNodes, outputs, mapIndexed { i, it -> it - other[i] })
-    }
-
-    operator fun get(index: Int) = components[index]
-
-    operator fun times(scale: Number) = CompressedNetwork(inputs, layers, layerNodes, outputs, map { it * scale })
-    operator fun div(divisor: Number) = CompressedNetwork(inputs, layers, layerNodes, outputs, map { it / divisor })
-
-    override val size: Int get() = components.size
-
-    override fun contains(element: Component) = components.contains(element)
-
-    override fun containsAll(elements: Collection<Component>) = components.containsAll(elements)
-
-    override fun isEmpty() = components.isEmpty()
-
-    override fun iterator() = components.iterator()
-
-    val random get() = CompressedNetwork.random(inputs, layers, layerNodes, outputs)
 
     override fun toString(): String {
-        var out = "(${inputs},${layers},${if (layers == 0) 0 else layerNodes},${outputs})["
-        forEach { out += "${it}," }
-        return "$out]"
+        val sigfigs = MathContext(1)
+
+        val line = "│"
+        val topLeft = "┌"
+        val topRight = "┐"
+        val bottomRight = "┘"
+        val bottomLeft = "└"
+
+        fun Double.formatted(): String {
+            val rounded = toBigDecimal().round(sigfigs).toDouble().toString()
+            var decimalPos: Int? = null
+            var digitPos: Int? = null
+            val negative = this < 0
+            for (i in rounded.indices) {
+                when (rounded[i]) {
+                    '0' -> {}
+                    '.' -> decimalPos = i
+                    else -> digitPos = i
+                }
+            }
+
+            if (digitPos == null) return "0   "
+            if (decimalPos == null) return "${rounded}e0 "
+
+            val e = (decimalPos - digitPos).toString()
+            return "${if (negative) "-" else " "}${rounded[digitPos]}e$e${" " * (2 - e.length).coerceAtLeast(0)}"
+        }
+
+        val layers: List<List<String>> = network.map { layer ->
+            val out = mutableListOf<String>()
+            if(layer.size > 1) {
+                out += buildString {
+                    append("┌ ")
+                    layer[0].forEach { weight -> append("${weight.formatted()} ") }
+                    append("┐")
+                }
+                for (i in 1 until layer.size - 1) {
+                    out += buildString {
+                        append("│ ")
+                        layer[i].forEach { weight -> append("${weight.formatted()} ") }
+                        append("│")
+                    }
+                }
+                out += buildString {
+                    append("└ ")
+                    layer.last().forEach { weight -> append("${weight.formatted()} ") }
+                    append("┘")
+                }
+            }else{
+                out += buildString {
+                    append("[ ")
+                    layer[0].forEach { weight -> append("${weight.formatted()} ") }
+                    append("]")
+                }
+            }
+            out.toList()
+        }
+
+        val maxRows = nodes.coerceAtLeast(outputs)
+        val midPoint = (maxRows - 1) / 2.0
+        var out = ""
+        for(i in 0 until maxRows){
+            out += buildString {
+                layers.forEach { layer ->
+                    val layerMidPoint = (layer.size - 1) / 2.0
+                    val range = (midPoint - layerMidPoint).toInt()..(midPoint + layerMidPoint).toInt()
+                    if (i in range) {
+                        append(layer[i - (midPoint - layerMidPoint).toInt()])
+                    }else {
+                        append(" " * layer[0].length)
+                    }
+                }
+                append("\n")
+            }
+        }
+        return out
     }
 
-    fun formattedString(): String{
-        var out = "(${inputs}, ${layers}, ${if (layers == 0) 0 else layerNodes}, ${outputs})[\n"
-        forEach { out += "  ${it},\n" }
-        return "$out]"
+    val serialized: String get() = network.toString()
+    companion object {
+//        fun deserialize(serial: String): Network {
+//
+//        }
+
+        fun random(inputs: Int, layers: Int, nodes: Int, outputs: Int) = Network(buildList {
+            add((0 until nodes).map { // node
+                (0 until inputs + 1).map { // weight
+                    Math.random() / sqrt(inputs + 1.0)
+                }
+            })
+            addAll((1 until layers).map { // layer
+                (0 until nodes).map { // node
+                    (0 until nodes + 1).map { // weight
+                        Math.random() / sqrt(nodes + 1.0)
+                    }
+                }
+            })
+            add((0 until outputs).map { // node
+                (0 until nodes + 1).map { // weight
+                    Math.random() / sqrt(nodes + 1.0)
+                }
+            })
+        })
+
+        fun zero(inputs: Int, layers: Int, nodes: Int, outputs: Int) = Network(buildList {
+            add((0 until nodes).map { // node
+                (0 until inputs + 1).map { // weight
+                    0.0
+                }
+            })
+            addAll((1 until layers).map { // layer
+                (0 until nodes).map { // node
+                    (0 until nodes + 1).map { // weight
+                        0.0
+                    }
+                }
+            })
+            add((0 until outputs).map { // node
+                (0 until nodes + 1).map { // weight
+                    0.0
+                }
+            })
+        })
+
+        fun one(inputs: Int, layers: Int, nodes: Int, outputs: Int) = Network(buildList {
+            add((0 until nodes).map { // node
+                (0 until inputs + 1).map { // weight
+                    1.0
+                }
+            })
+            addAll((1 until layers).map { // layer
+                (0 until nodes).map { // node
+                    (0 until nodes + 1).map { // weight
+                        1.0
+                    }
+                }
+            })
+            add((0 until outputs).map { // node
+                (0 until nodes + 1).map { // weight
+                    1.0
+                }
+            })
+        })
+    }
+
+    operator fun times(scale: Double): Network = Network(network * scale)
+    operator fun plus(other: Network): Network = Network(network + other.network)
+}
+
+@JvmName("scale3d")
+operator fun List3d.times(scale: Double) = map { it * scale }
+
+@JvmName("plus3d")
+operator fun List3d.plus(other: List3d) = mapIndexed { i, it -> it + other[i] }
+
+
+
+@JvmName("scale2d")
+operator fun List2d.times(scale: Double): List2d = map { it ->
+    it.map {
+        it * scale
+    }
+}
+
+val List2d.transpose: List2d get() {
+
+        require(rectangular) {
+            "2d List must be a rectangular matrix"
+        }
+
+        val builder = mutableListOf<List1d>()
+        for (j in this[0].indices) {
+            val column = mutableListOf<Double>()
+            for (i in indices) {
+                column.add(this[i][j])
+            }
+            builder.add(column.toList())
+        }
+
+        return builder.toList()
+    }
+
+operator fun List2d.times(other: List2d): List2d {
+    require(this[0].size == other.size) {
+        "Matrix columns ${this[0].size} must equal rows ${other.size}"
+    }
+    return other.transpose.map {
+        this * it
+    }.transpose
+}
+
+@JvmName("apply")
+operator fun List2d.times(other: List1d): List1d {
+    require(this[0].size == other.size) {
+        "Dimension of vector ${other.size} does not match with input dimension of transformation ${this[0].size}"
+    }
+    val transposed = transpose
+    var sum = other.map { 0.0 }
+    for (i in other.indices) {
+        sum = sum + (transposed[i] * other[i])
+    }
+    return sum
+}
+
+val List2d.rectangular: Boolean get() = map { size }.distinct().size == 1
+
+@JvmName("plus2d")
+operator fun List2d.plus(other: List2d) = mapIndexed {i, it -> it + other[i]}
+
+
+
+@JvmName("scale")
+operator fun List1d.times(scale: Double): List1d = this.map { it * scale }
+
+operator fun List1d.plus(other: List1d): List1d {
+    require(size == other.size) {
+        "List size $size does not match with other list size ${other.size}"
+    }
+
+    return mapIndexed { i, it ->
+        it + other[i]
     }
 }
 
 
 
-
-
+operator fun String.times(scale: Int) = buildString {
+    repeat(scale) {
+        append(this@times)
+    }
+}

@@ -14,8 +14,8 @@ fun mainMenu(program: Program) = buildMenu(program, Matrix44.IDENTITY){
     }
 
     button(4, ai){
-        textFieldToScene(1){
-            Training(program, this.transform, it.toInt())
+        textFieldToMenu(1){
+//            Training(program, this.transform, it.toInt())
         }
     }
 

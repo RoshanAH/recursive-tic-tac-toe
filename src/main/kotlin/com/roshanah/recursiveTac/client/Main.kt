@@ -4,8 +4,8 @@ import com.roshanah.recursiveTac.client.rendering.times
 //import com.roshanah.recursiveTac.client.scenes.MainMenu
 import com.roshanah.recursiveTac.client.scenes.Scene
 import com.roshanah.recursiveTac.client.scenes.mainMenu
-import com.roshanah.recursiveTac.ml.CompressedNetwork
 import com.roshanah.recursiveTac.ml.Network
+import com.roshanah.recursiveTac.ml.times
 import org.openrndr.*
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.*
@@ -13,8 +13,10 @@ import org.openrndr.math.Matrix44
 import org.openrndr.math.Vector2
 import org.openrndr.math.transforms.transform
 import java.lang.Math.random
+import java.math.MathContext
 import kotlin.math.E
 import kotlin.math.pow
+import kotlin.system.measureNanoTime
 
 var globalCameraPos = Vector2(0.5, 0.5)
     private set(value) {
@@ -105,33 +107,9 @@ fun main() = application {
             }
         }
 
-//        var inputs = listOf(0.0, 0.0)
-//
-//        var testNet = CompressedNetwork.random(2, 2, 3, 1).extract(inputs.indices.map { { inputs[it] } })
-//        repeat(5000) {
-//            var avg = testNet.compressed * 0
-//            repeat(5000) {
-//                inputs = listOf(
-//                    (random() * 2).toInt().toDouble(),
-//                    (random() * 2).toInt().toDouble()
-//                )
-//                testNet.fire()
-//                avg += testNet.computeGradient(listOf((inputs[0].toInt() xor inputs[1].toInt()).toDouble()))
-//            }
-//            avg /= 1000
-//            testNet = testNet.descend(avg, 0.005, inputs.indices.map { { inputs[it] } })
-//        }
-//
-//        println(testNet.compressed.formattedString())
-//
-//        inputs = listOf(0.0, 0.0)
-//        println(testNet.fire())
-//        inputs = listOf(1.0, 0.0)
-//        println(testNet.fire())
-//        inputs = listOf(0.0, 1.0)
-//        println(testNet.fire())
-//        inputs = listOf(1.0, 1.0)
-//        println(testNet.fire())
+
+        println(Network.random(1, 3, 4, 6))
+
 
         extend {
             if (transformRecalculate) {
