@@ -5,6 +5,7 @@ import com.roshanah.recursiveTac.client.rendering.times
 import com.roshanah.recursiveTac.client.scenes.Scene
 import com.roshanah.recursiveTac.client.scenes.mainMenu
 import com.roshanah.recursiveTac.ml.Network
+import com.roshanah.recursiveTac.ml.splitList
 import com.roshanah.recursiveTac.ml.times
 import org.openrndr.*
 import org.openrndr.color.ColorRGBa
@@ -108,7 +109,10 @@ fun main() = application {
         }
 
 
-        println(Network.random(1, 3, 4, 6))
+        val net = Network.random(10, 3, 8, 4)
+
+        println(net)
+        println(Network.deserialize(net.serialized))
 
 
         extend {

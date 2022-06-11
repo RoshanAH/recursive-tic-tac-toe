@@ -1,8 +1,6 @@
 package com.roshanah.recursiveTac.ml
 
-import java.math.BigDecimal
 import java.math.MathContext
-import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 typealias List1d = List<Double>
@@ -58,11 +56,11 @@ class Network(val network: List3d) {
     }
 
     fun fire(inputs: List1d): List2d = buildList {
-        require(inputs.size == this@Network.inputs){
+        require(inputs.size == this@Network.inputs) {
             "Input size ${inputs.size} does not match network input size ${this@Network.inputs}"
         }
-        add(inputs.map { it.coerceAtLeast(0.0) } + 1.0)
-        for (i in 0 until network.size - 1) {
+        add(inputs.map { it.coerceAtLeast(0.0) })
+        for (i in network.indices) {
             add(network[i] * (this[i] + 1.0).map { it.coerceAtLeast(0.0) })
         }
     }
@@ -98,7 +96,7 @@ class Network(val network: List3d) {
 
         val layers: List<List<String>> = network.map { layer ->
             val out = mutableListOf<String>()
-            if(layer.size > 1) {
+            if (layer.size > 1) {
                 out += buildString {
                     append("┌ ")
                     layer[0].forEach { weight -> append("${weight.formatted()} ") }
@@ -116,7 +114,7 @@ class Network(val network: List3d) {
                     layer.last().forEach { weight -> append("${weight.formatted()} ") }
                     append("┘")
                 }
-            }else{
+            } else {
                 out += buildString {
                     append("[ ")
                     layer[0].forEach { weight -> append("${weight.formatted()} ") }
@@ -129,14 +127,14 @@ class Network(val network: List3d) {
         val maxRows = nodes.coerceAtLeast(outputs)
         val midPoint = (maxRows - 1) / 2.0
         var out = ""
-        for(i in 0 until maxRows){
+        for (i in 0 until maxRows) {
             out += buildString {
                 layers.forEach { layer ->
                     val layerMidPoint = (layer.size - 1) / 2.0
                     val range = (midPoint - layerMidPoint).toInt()..(midPoint + layerMidPoint).toInt()
                     if (i in range) {
                         append(layer[i - (midPoint - layerMidPoint).toInt()])
-                    }else {
+                    } else {
                         append(" " * layer[0].length)
                     }
                 }
@@ -147,10 +145,17 @@ class Network(val network: List3d) {
     }
 
     val serialized: String get() = network.toString()
+
     companion object {
-//        fun deserialize(serial: String): Network {
-//
-//        }
+        fun deserialize(serial: String) = Network(
+            splitList(serial, '[', ']').map { layer ->
+                splitList(layer, '[', ']').map { node ->
+                    splitList(node, '[', ']').map { weight ->
+                        weight.toDouble()
+                    }
+                }
+            }
+        )
 
         fun random(inputs: Int, layers: Int, nodes: Int, outputs: Int) = Network(buildList {
             add((0 until nodes).map { // node
@@ -224,7 +229,6 @@ operator fun List3d.times(scale: Double) = map { it * scale }
 operator fun List3d.plus(other: List3d) = mapIndexed { i, it -> it + other[i] }
 
 
-
 @JvmName("scale2d")
 operator fun List2d.times(scale: Double): List2d = map { it ->
     it.map {
@@ -232,7 +236,8 @@ operator fun List2d.times(scale: Double): List2d = map { it ->
     }
 }
 
-val List2d.transpose: List2d get() {
+val List2d.transpose: List2d
+    get() {
 
         require(rectangular) {
             "2d List must be a rectangular matrix"
@@ -260,14 +265,14 @@ operator fun List2d.times(other: List2d): List2d {
 }
 
 @JvmName("apply")
-operator fun List2d.times(other: List1d): List1d {
-    require(this[0].size == other.size) {
-        "Dimension of vector ${other.size} does not match with input dimension of transformation ${this[0].size}"
+operator fun List2d.times(vector: List1d): List1d {
+    require(this[0].size == vector.size) {
+        "Vector dimension of ${vector.size} does not match with transformation dimension of ${this[0].size}"
     }
     val transposed = transpose
-    var sum = other.map { 0.0 }
-    for (i in other.indices) {
-        sum = sum + (transposed[i] * other[i])
+    var sum = map { 0.0 }
+    for (i in vector.indices) {
+        sum = sum + (transposed[i] * vector[i])
     }
     return sum
 }
@@ -275,8 +280,7 @@ operator fun List2d.times(other: List1d): List1d {
 val List2d.rectangular: Boolean get() = map { size }.distinct().size == 1
 
 @JvmName("plus2d")
-operator fun List2d.plus(other: List2d) = mapIndexed {i, it -> it + other[i]}
-
+operator fun List2d.plus(other: List2d) = mapIndexed { i, it -> it + other[i] }
 
 
 @JvmName("scale")
@@ -293,9 +297,25 @@ operator fun List1d.plus(other: List1d): List1d {
 }
 
 
-
 operator fun String.times(scale: Int) = buildString {
     repeat(scale) {
         append(this@times)
     }
+}
+
+fun splitList(serial: String, open: Char, close: Char): List<String> = buildList {
+    var net = 0
+    var lastSplit = 1
+    val serial = serial.filter { !it.isWhitespace() }
+    for (i in serial.indices) {
+        when (serial[i]) {
+            open -> net++
+            close -> net--
+            ',' -> if (net == 1) {
+                add(serial.substring(lastSplit, i))
+                lastSplit = i + 1
+            }
+        }
+    }
+    add(serial.substring(lastSplit, serial.length - 1))
 }
