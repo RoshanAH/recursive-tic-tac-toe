@@ -108,11 +108,37 @@ fun main() = application {
             }
         }
 
+//        var net = Network.random(2, 1, 100, 1)
+////        var net = Network.deserialize("[[[0.33740999424066503, -0.744815912444695, -0.6141708903689936], [-0.7686361632872968, -0.6956511079038626, -0.31830291627848895], [0.5462729066456912, 0.18108963821736188, 0.7712817132301664]], [[0.08626614790625421, 0.30875598674710325, 0.48654591879515413, -0.16166702599224775]]]")
+//        println(net)
+//        println(net.serialized)
+//        val x = listOf(
+//            listOf(0.0, 0.0),
+//            listOf(1.0, 0.0),
+//            listOf(0.0, 1.0),
+//            listOf(1.0, 1.0),
+//        )
+//        val y = listOf(
+//            listOf(0.0),
+//            listOf(1.0),
+//            listOf(1.0),
+//            listOf(0.0),
+//        )
+//
+//        println("training took: ${measureNanoTime { for(i in 0 until 5000){
+//            var sum = net * 0.0
+//            for(d in x.indices)
+//                sum += net.computeGradient(x[d], y[d])
+//            sum /= x.size.toDouble()
+//            net = net.descend(sum, 0.1)
+//        } } * 1e-9} seconds")
+//
+//        println(net)
+//
+//        for(i in x.indices){
+//            println("(${x[i]}, ${y[i]}) -> ${net.fire(x[i]).last()}")
+//        }
 
-        val net = Network.random(10, 3, 8, 4)
-
-        println(net)
-        println(Network.deserialize(net.serialized))
 
 
         extend {

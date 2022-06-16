@@ -7,13 +7,14 @@ typealias List1d = List<Double>
 typealias List2d = List<List1d>
 typealias List3d = List<List2d>
 
-class Network(val network: List3d) {
+class Network {
+    val network: List3d
     val inputs: Int
     val layers: Int
     val nodes: Int
     val outputs: Int
 
-    init {
+    constructor (network: List3d) {
         require(network.size >= 2) {
             "Network format error: network must have at least an input and output layer"
         }
@@ -53,6 +54,15 @@ class Network(val network: List3d) {
                 }
             }
         }
+        this.network = network
+    }
+
+    private constructor(network: List3d, inputs: Int, layers: Int, nodes: Int, outputs: Int){
+        this.network = network
+        this.inputs = inputs
+        this.layers = layers
+        this.nodes = nodes
+        this.outputs = outputs
     }
 
     fun fire(inputs: List1d): List2d = buildList {
@@ -65,14 +75,52 @@ class Network(val network: List3d) {
         }
     }
 
+    fun computeGradient(fired: List2d, key: List1d): Network {
+        require(fired.size == layers + 2 && fired[0].size == inputs && fired.last().size == outputs) {
+            "Fired network does not fit the dimensions of this network"
+        }
+        require(key.size == outputs) {
+            "Key size of ${key.size} does not match network output size of $outputs"
+        }
+
+        var activationDerivatives: List1d = fired.last().mapIndexed { i, it ->
+            2 * (it - key[i])
+        }
+
+        val out = mutableListOf<List2d>()
+
+        for (l in layers downTo 0) {
+            val layer = network[l]
+            val gradientLayer = mutableListOf<List1d>()
+            val nextActivationDerivatives = (0 until layer[0].size - 1).map { 0.0 }.toMutableList()
+            for (n in layer.indices) {
+                val gradientNode = mutableListOf<Double>()
+                val node = layer[n]
+                for (w in 0 until node.size - 1) {
+                    val activation = fired[l][w] // gives us previous layer because fired includes inputs values
+                    val reluDerivative = if (activation > 0) 1.0 else 0.01 // leaky relu
+                    gradientNode.add(reluDerivative * activation * activationDerivatives[n]) // chain rule
+                    nextActivationDerivatives[w] += reluDerivative * node[w] * activationDerivatives[n]
+                }
+//                nextActivationDerivatives[node.lastIndex] += node.last() * activationDerivatives[n] makes no sense to keep track of bias activation because we cannot change it
+                gradientNode.add(activationDerivatives[n]) // previous activation is always one since this is the bias node
+                gradientLayer.add(gradientNode.toList())
+            }
+            out.add(0, gradientLayer.toList()) // Adding backwards because we are propagating backwards
+            activationDerivatives = nextActivationDerivatives.toList()
+        }
+
+
+        return Network(out.toList())
+    }
+
+    @JvmName("fireAndComputeGradient")
+    fun computeGradient(inputs: List1d, key: List1d) = computeGradient(fire(inputs), key)
+
+    fun descend(gradient: Network, step: Double) = this + gradient * -step
+
     override fun toString(): String {
         val sigfigs = MathContext(1)
-
-        val line = "│"
-        val topLeft = "┌"
-        val topRight = "┐"
-        val bottomRight = "┘"
-        val bottomLeft = "└"
 
         fun Double.formatted(): String {
             val rounded = toBigDecimal().round(sigfigs).toDouble().toString()
@@ -87,7 +135,7 @@ class Network(val network: List3d) {
                 }
             }
 
-            if (digitPos == null) return "0   "
+            if (digitPos == null) return " 0   "
             if (decimalPos == null) return "${rounded}e0 "
 
             val e = (decimalPos - digitPos).toString()
@@ -160,22 +208,22 @@ class Network(val network: List3d) {
         fun random(inputs: Int, layers: Int, nodes: Int, outputs: Int) = Network(buildList {
             add((0 until nodes).map { // node
                 (0 until inputs + 1).map { // weight
-                    Math.random() / sqrt(inputs + 1.0)
+                    (Math.random() * 2.0 - 1.0) * sqrt(2.0 / (inputs + 1.0))
                 }
             })
             addAll((1 until layers).map { // layer
                 (0 until nodes).map { // node
                     (0 until nodes + 1).map { // weight
-                        Math.random() / sqrt(nodes + 1.0)
+                        (Math.random() * 2.0 - 1.0)  * sqrt(2.0 / (nodes + 1.0))
                     }
                 }
             })
             add((0 until outputs).map { // node
                 (0 until nodes + 1).map { // weight
-                    Math.random() / sqrt(nodes + 1.0)
+                    (Math.random() * 2.0 - 1.0) * sqrt(2.0 / (nodes + 1.0))
                 }
             })
-        })
+        }, inputs, layers, nodes, outputs)
 
         fun zero(inputs: Int, layers: Int, nodes: Int, outputs: Int) = Network(buildList {
             add((0 until nodes).map { // node
@@ -195,7 +243,7 @@ class Network(val network: List3d) {
                     0.0
                 }
             })
-        })
+        }, inputs, layers, nodes, outputs)
 
         fun one(inputs: Int, layers: Int, nodes: Int, outputs: Int) = Network(buildList {
             add((0 until nodes).map { // node
@@ -215,11 +263,23 @@ class Network(val network: List3d) {
                     1.0
                 }
             })
-        })
+        }, inputs, layers, nodes, outputs)
     }
 
-    operator fun times(scale: Double): Network = Network(network * scale)
-    operator fun plus(other: Network): Network = Network(network + other.network)
+    operator fun times(scale: Double): Network = Network(network * scale, inputs, layers, nodes, outputs)
+    operator fun div(divisor: Double) = this * (1.0 / divisor)
+    operator fun plus(other: Network): Network {
+        require(inputs == other.inputs && layers == other.layers && nodes == other.nodes && outputs == other.outputs){
+            "This network does not match dimensions of other network"
+        }
+        return Network(network + other.network, inputs, layers, nodes, outputs)
+    }
+    operator fun minus(other: Network): Network {
+        require(inputs == other.inputs && layers == other.layers && nodes == other.nodes && outputs == other.outputs){
+            "This network does not match dimensions of other network"
+        }
+        return Network(network - other.network, inputs, layers, nodes, outputs)
+    }
 }
 
 @JvmName("scale3d")
@@ -227,6 +287,9 @@ operator fun List3d.times(scale: Double) = map { it * scale }
 
 @JvmName("plus3d")
 operator fun List3d.plus(other: List3d) = mapIndexed { i, it -> it + other[i] }
+
+@JvmName("minus3d")
+operator fun List3d.minus(other: List3d) = mapIndexed { i, it -> it - other[i] }
 
 
 @JvmName("scale2d")
@@ -282,6 +345,9 @@ val List2d.rectangular: Boolean get() = map { size }.distinct().size == 1
 @JvmName("plus2d")
 operator fun List2d.plus(other: List2d) = mapIndexed { i, it -> it + other[i] }
 
+@JvmName("minus2d")
+operator fun List2d.minus(other: List2d) = mapIndexed { i, it -> it - other[i] }
+
 
 @JvmName("scale")
 operator fun List1d.times(scale: Double): List1d = this.map { it * scale }
@@ -293,6 +359,16 @@ operator fun List1d.plus(other: List1d): List1d {
 
     return mapIndexed { i, it ->
         it + other[i]
+    }
+}
+
+operator fun List1d.minus(other: List1d): List1d {
+    require(size == other.size) {
+        "List size $size does not match with other list size ${other.size}"
+    }
+
+    return mapIndexed { i, it ->
+        it - other[i]
     }
 }
 
