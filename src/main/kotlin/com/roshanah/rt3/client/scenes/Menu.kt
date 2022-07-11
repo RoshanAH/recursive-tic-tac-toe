@@ -1,8 +1,8 @@
-package com.roshanah.recursiveTac.client.scenes
+package com.roshanah.rt3.client.scenes
 
-import com.roshanah.recursiveTac.client.rendering.ai
-import com.roshanah.recursiveTac.client.rendering.multiplayer
-import com.roshanah.recursiveTac.client.rendering.player
+import com.roshanah.rt3.client.rendering.ai
+import com.roshanah.rt3.client.rendering.multiplayer
+import com.roshanah.rt3.client.rendering.player
 import org.openrndr.Program
 import org.openrndr.math.Matrix44
 
@@ -14,8 +14,8 @@ fun mainMenu(program: Program) = buildMenu(program, Matrix44.IDENTITY){
     }
 
     button(4, ai){
-        textFieldToMenu(1){
-//            Training(program, this.transform, it.toInt())
+        textFieldToScene(1){
+            Training(program, this.transform, it.toInt())
         }
     }
 

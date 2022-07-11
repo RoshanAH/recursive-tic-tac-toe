@@ -1,4 +1,4 @@
-package com.roshanah.recursiveTac.client.elements
+package com.roshanah.rt3.client.elements
 
 abstract class Slot {
     open var active = false

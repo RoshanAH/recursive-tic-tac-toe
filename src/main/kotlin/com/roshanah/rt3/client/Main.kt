@@ -1,23 +1,17 @@
-package com.roshanah.recursiveTac.client
+package com.roshanah.rt3.client
 
-import com.roshanah.recursiveTac.client.rendering.times
+import com.roshanah.rt3.client.rendering.times
 //import com.roshanah.recursiveTac.client.scenes.MainMenu
-import com.roshanah.recursiveTac.client.scenes.Scene
-import com.roshanah.recursiveTac.client.scenes.mainMenu
-import com.roshanah.recursiveTac.ml.Network
-import com.roshanah.recursiveTac.ml.splitList
-import com.roshanah.recursiveTac.ml.times
+import com.roshanah.rt3.client.scenes.Scene
+import com.roshanah.rt3.client.scenes.mainMenu
 import org.openrndr.*
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.*
 import org.openrndr.math.Matrix44
 import org.openrndr.math.Vector2
 import org.openrndr.math.transforms.transform
-import java.lang.Math.random
-import java.math.MathContext
 import kotlin.math.E
 import kotlin.math.pow
-import kotlin.system.measureNanoTime
 
 var globalCameraPos = Vector2(0.5, 0.5)
     private set(value) {
@@ -140,6 +134,15 @@ fun main() = application {
 //        }
 
 
+//        val testGame = Game(0)
+//            .getMove(0, Player.X)
+//            .getMove(3, Player.O)
+//            .getMove(6, Player.X)
+//            .getMove(4, Player.O)
+//            .getMove(1, Player.X)
+//
+//        println(testGame.encode(Player.O))
+
 
         extend {
             if (transformRecalculate) {
@@ -192,3 +195,6 @@ fun Program.testRender() {
 //    drawer.stroke = null
 //    drawer.shapes(ai)
 //}
+
+
+

@@ -1,4 +1,4 @@
-package com.roshanah.recursiveTac.client.elements
+package com.roshanah.rt3.client.elements
 
 class Symbol internal constructor(val state: State) : Slot() {
     init {

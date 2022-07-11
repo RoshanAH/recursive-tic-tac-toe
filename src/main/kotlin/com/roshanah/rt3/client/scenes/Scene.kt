@@ -1,16 +1,15 @@
-package com.roshanah.recursiveTac.client.scenes
+package com.roshanah.rt3.client.scenes
 
-import com.roshanah.recursiveTac.client.*
-import com.roshanah.recursiveTac.client.elements.Game
-import com.roshanah.recursiveTac.client.rendering.*
-import com.roshanah.recursiveTac.client.rendering.GameRenderer.Companion.padding
+import com.roshanah.rt3.client.*
+import com.roshanah.rt3.client.elements.Game
+import com.roshanah.rt3.client.rendering.*
+import com.roshanah.rt3.client.rendering.GameRenderer.Companion.padding
 import org.openrndr.KEY_BACKSPACE
 import org.openrndr.KEY_ENTER
 import org.openrndr.MouseButton
 import org.openrndr.Program
 import org.openrndr.draw.FontImageMap
 import org.openrndr.draw.isolated
-import org.openrndr.draw.writer
 import org.openrndr.math.Matrix44
 import org.openrndr.math.Vector2
 import org.openrndr.math.transforms.transform

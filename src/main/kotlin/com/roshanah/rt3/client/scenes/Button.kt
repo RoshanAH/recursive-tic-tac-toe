@@ -1,10 +1,7 @@
-package com.roshanah.recursiveTac.client.scenes
+package com.roshanah.rt3.client.scenes
 
-import com.roshanah.recursiveTac.client.elements.Game
-import com.roshanah.recursiveTac.client.rendering.GameRenderer
-import com.roshanah.recursiveTac.client.scenes
-import com.roshanah.recursiveTac.client.zoom
-import org.openrndr.Program
+import com.roshanah.rt3.client.scenes
+import com.roshanah.rt3.client.zoom
 import org.openrndr.math.Matrix44
 import org.openrndr.shape.Shape
 

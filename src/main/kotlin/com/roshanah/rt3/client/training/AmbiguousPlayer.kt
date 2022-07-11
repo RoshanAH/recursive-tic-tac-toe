@@ -1,11 +1,9 @@
-package com.roshanah.recursiveTac.client.training
+package com.roshanah.rt3.client.training
 
-import com.roshanah.recursiveTac.client.GamePlayer
-import com.roshanah.recursiveTac.client.elements.Game
-import com.roshanah.recursiveTac.client.elements.Player
-import com.roshanah.recursiveTac.client.elements.Symbol
+import com.roshanah.rt3.client.GamePlayer
+import com.roshanah.rt3.client.elements.*
 
-private typealias Transform = (List<Int>) -> List<Int>
+private typealias Transform = (SlotIndex) -> SlotIndex
 
 class AmbiguousPlayer(original: GamePlayer) {
     data class Transformed(val player: GamePlayer, val transform: Transform, val inverse: Transform)
@@ -26,9 +24,9 @@ class AmbiguousPlayer(original: GamePlayer) {
     val normalized get() = normal.player.game
 
     val history: MutableList<Game> = mutableListOf(original.history.first())
-    val moveHistory: MutableList<List<Int>> = mutableListOf()
+    val moveHistory: MutableList<SlotIndex> = mutableListOf()
 
-    fun extractMoves(player: Player): List<Pair<Game, List<Int>>> = buildList {
+    fun extractMoves(player: Player): List<Pair<Game, SlotIndex>> = buildList {
         for (i in moveHistory.indices) {
             if ((i % 2 == 0) == (player == Player.X))
                 add(Pair(history[i], moveHistory[i]))
@@ -78,10 +76,10 @@ class AmbiguousPlayer(original: GamePlayer) {
 //    fun makeMove(slot: List<Int>) = makeMove(original.player.game.positionToMove(slot))
 
     fun makeMove(move: Int) = makeMove(normalized.positionOf(move))
-    fun makeMove(slot: List<Int>) {
+    fun makeMove(slot: SlotIndex) {
         val originalMove = normal.inverse(slot)
 
-        original.player.makeMove(originalMove)
+        original.player.makeMove(original.player.game.positionToMove(originalMove))
         transforms.forEach {
             it.player.makeMove(it.transform(originalMove))
         }
@@ -139,44 +137,48 @@ class AmbiguousPlayer(original: GamePlayer) {
 val identity: Transform = { it }
 
 val clockwise: Transform = {
-    it.map { slot ->
+    it.stack.map { slot ->
         3 * (slot % 3) - slot / 3 + 2
-    }
+    }.slotIndex
 }
 
 val counterClockwise: Transform = {
-    it.map { slot ->
+    it.stack.map { slot ->
         6 - 3 * (slot % 3) + slot / 3
-    }
+    }.slotIndex
 }
 
 val rotateTwice: Transform = {
-    it.map { slot ->
+    it.stack.map { slot ->
         8 - 3 * (slot / 3) - slot % 3
-    }
+    }.slotIndex
 }
 
 val verticalMirror: Transform = {
-    it.map { slot ->
+    it.stack.map { slot ->
         3 * (slot / 3) - slot % 3 + 2
-    }
+    }.slotIndex
 }
 
 val horizontalMirror: Transform = {
-    it.map { slot ->
+    it.stack.map { slot ->
         6 - 3 * (slot / 3) + slot % 3
-    }
+    }.slotIndex
 }
 
 val diagnol1Mirror: Transform = {
-    it.map { slot ->
+    it.stack.map { slot ->
         3 * (slot % 3) + slot / 3
-    }
+    }.slotIndex
 }
 
 val diagnol2Mirror: Transform = {
-    it.map { slot ->
+    it.stack.map { slot ->
         8 - 3 * (slot % 3) - slot / 3
-    }
+    }.slotIndex
+}
+
+val Game.normalize: Game get() = {
+
 }
 

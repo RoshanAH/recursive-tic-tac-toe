@@ -1,4 +1,4 @@
-package com.roshanah.recursiveTac
+package com.roshanah.rt3
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -11,9 +11,7 @@ import java.util.*
 class Connection(val socket: Socket) {
     private val output: PrintStream = PrintStream(socket.getOutputStream())
     private val input: Scanner = Scanner(socket.getInputStream())
-    var job: Job? = null
-    val connected
-        get() = job?.isActive ?: false
+
     var onDisconnect: () -> Unit = { }
     var onReceived: (String) -> Unit = { }
     private var queryRequested = false
@@ -30,16 +28,9 @@ class Connection(val socket: Socket) {
         return response
     }
 
-    fun run(): Job{
-        var j: Job
-        runBlocking {
-            j = launch {
-                while (socket.isConnected && input.hasNext()) receive(input.nextLine())
-                onDisconnect()
-            }
-        }
-        job = j
-        return j
+    fun run() {
+        while (socket.isConnected && input.hasNext()) receive(input.nextLine())
+        onDisconnect()
     }
 
     private fun receive(s: String) {
@@ -66,11 +57,13 @@ class Connection(val socket: Socket) {
 //
 //}
 
-class RecieverBuilder(val command: String){
+// TODO rework concurrency system
 
-
-
-    fun command(type: String, body: RecieverBuilder.() -> Unit){
-
-    }
-}
+//class RecieverBuilder(val command: String){
+//
+//
+//
+//    fun command(type: String, body: RecieverBuilder.() -> Unit){
+//
+//    }
+//}

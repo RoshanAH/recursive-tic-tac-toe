@@ -1,4 +1,4 @@
-package com.roshanah.recursiveTac.ml
+package com.roshanah.rt3.ml
 
 import java.math.MathContext
 import kotlin.math.sqrt
@@ -71,11 +71,11 @@ class Network {
         }
         add(inputs.map { it.coerceAtLeast(0.0) })
         for (i in network.indices) {
-            add(network[i] * (this[i] + 1.0).map { it.coerceAtLeast(0.0) })
+            add((network[i] * (this[i] + 1.0)).map { it.coerceAtLeast(0.0) })
         }
     }
 
-    fun computeGradient(fired: List2d, key: List1d): Network {
+    fun computeGradient(fired: List2d, key: List<Double?>): Network {
         require(fired.size == layers + 2 && fired[0].size == inputs && fired.last().size == outputs) {
             "Fired network does not fit the dimensions of this network"
         }
@@ -84,7 +84,7 @@ class Network {
         }
 
         var activationDerivatives: List1d = fired.last().mapIndexed { i, it ->
-            2 * (it - key[i])
+            if(key[i] == null) 0.0 else 2 * (it - key[i]!!)
         }
 
         val out = mutableListOf<List2d>()
@@ -115,7 +115,7 @@ class Network {
     }
 
     @JvmName("fireAndComputeGradient")
-    fun computeGradient(inputs: List1d, key: List1d) = computeGradient(fire(inputs), key)
+    fun computeGradient(inputs: List1d, key: List<Double?>) = computeGradient(fire(inputs), key)
 
     fun descend(gradient: Network, step: Double) = this + gradient * -step
 
@@ -266,8 +266,8 @@ class Network {
         }, inputs, layers, nodes, outputs)
     }
 
-    operator fun times(scale: Double): Network = Network(network * scale, inputs, layers, nodes, outputs)
-    operator fun div(divisor: Double) = this * (1.0 / divisor)
+    operator fun times(scale: Number): Network = Network(network * scale, inputs, layers, nodes, outputs)
+    operator fun div(divisor: Number) = this * (1.0 / divisor.toDouble())
     operator fun plus(other: Network): Network {
         require(inputs == other.inputs && layers == other.layers && nodes == other.nodes && outputs == other.outputs){
             "This network does not match dimensions of other network"
@@ -280,10 +280,14 @@ class Network {
         }
         return Network(network - other.network, inputs, layers, nodes, outputs)
     }
+
+    val random: Network get() = random(inputs, layers, nodes, outputs)
+    val one: Network get() = one(inputs, layers, nodes, outputs)
+    val zero: Network get() = zero(inputs, layers, nodes, outputs)
 }
 
 @JvmName("scale3d")
-operator fun List3d.times(scale: Double) = map { it * scale }
+operator fun List3d.times(scale: Number) = map { it * scale }
 
 @JvmName("plus3d")
 operator fun List3d.plus(other: List3d) = mapIndexed { i, it -> it + other[i] }
@@ -293,9 +297,9 @@ operator fun List3d.minus(other: List3d) = mapIndexed { i, it -> it - other[i] }
 
 
 @JvmName("scale2d")
-operator fun List2d.times(scale: Double): List2d = map { it ->
+operator fun List2d.times(scale: Number): List2d = map { it ->
     it.map {
-        it * scale
+        it * scale.toDouble()
     }
 }
 
@@ -350,7 +354,7 @@ operator fun List2d.minus(other: List2d) = mapIndexed { i, it -> it - other[i] }
 
 
 @JvmName("scale")
-operator fun List1d.times(scale: Double): List1d = this.map { it * scale }
+operator fun List1d.times(scale: Number): List1d = this.map { it * scale.toDouble() }
 
 operator fun List1d.plus(other: List1d): List1d {
     require(size == other.size) {

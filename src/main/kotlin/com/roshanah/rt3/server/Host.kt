@@ -1,8 +1,11 @@
-package com.roshanah.recursiveTac.server
+package com.roshanah.rt3.server
 
-import com.roshanah.recursiveTac.client.GamePlayer
-import com.roshanah.recursiveTac.Connection
-import com.roshanah.recursiveTac.client.elements.Player
+import com.roshanah.rt3.client.GamePlayer
+import com.roshanah.rt3.Connection
+import com.roshanah.rt3.client.elements.Player
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.net.ServerSocket
 import kotlin.Throws
 import java.io.IOException
@@ -15,10 +18,10 @@ class Host {
     private val server = ServerSocket(33584)
 
     @Throws(IOException::class)
-    internal fun run() {
+    internal fun run(scope: CoroutineScope) = scope.apply {
         while (true) {
             val c = Connection(server.accept())
-            c.run()
+            launch { c.run() }
             c.onReceived = { s -> handleIdleCommand(c, s) }
             c.onDisconnect = { println("connection left") }
             idles.add(c)
@@ -71,7 +74,7 @@ class Host {
                 println("new game created")
             }
             "load" -> {
-                val split = command.split(",").toTypedArray()
+                val split = command.split(",")
                 val bound = 1000 - games.size
                 var number = Random().nextInt(bound)
                 while (true) {
@@ -110,9 +113,9 @@ class Host {
 
 }
 
-fun main() {
+fun main() = runBlocking {
     try {
-        Host().run()
+        Host().run(this)
     } catch (e: IOException) {
         e.printStackTrace()
     }

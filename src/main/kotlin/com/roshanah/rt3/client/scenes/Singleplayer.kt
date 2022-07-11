@@ -1,11 +1,10 @@
-package com.roshanah.recursiveTac.client.scenes
+package com.roshanah.rt3.client.scenes
 
-import com.roshanah.recursiveTac.client.GamePlayer
-import com.roshanah.recursiveTac.client.cameraTransform
-import com.roshanah.recursiveTac.client.elements.Game
-import com.roshanah.recursiveTac.client.rendering.GameRenderer
-import com.roshanah.recursiveTac.client.rendering.times
-import com.roshanah.recursiveTac.client.sizeTransform
+import com.roshanah.rt3.client.GamePlayer
+import com.roshanah.rt3.client.cameraTransform
+import com.roshanah.rt3.client.rendering.GameRenderer
+import com.roshanah.rt3.client.rendering.times
+import com.roshanah.rt3.client.sizeTransform
 import org.openrndr.KEY_SPACEBAR
 import org.openrndr.MouseButton
 import org.openrndr.Program

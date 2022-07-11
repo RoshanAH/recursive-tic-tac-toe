@@ -1,4 +1,4 @@
-package com.roshanah.recursiveTac.client.elements
+package com.roshanah.rt3.client.elements
 
 enum class Player {
     X, O;
@@ -9,6 +9,8 @@ enum class Player {
             O -> X
         }
     }
+
+    operator fun not() = other()
 
     val symbol: Symbol
         get() = when (this) {

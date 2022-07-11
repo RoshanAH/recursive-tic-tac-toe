@@ -1,11 +1,10 @@
-package com.roshanah.recursiveTac.client.rendering
+package com.roshanah.rt3.client.rendering
 
-import com.roshanah.recursiveTac.client.elements.Game
-import com.roshanah.recursiveTac.client.elements.Symbol
-import com.roshanah.recursiveTac.client.foreground
-import com.roshanah.recursiveTac.client.renderedObjects
+import com.roshanah.rt3.client.elements.Game
+import com.roshanah.rt3.client.elements.Symbol
+import com.roshanah.rt3.client.foreground
+import com.roshanah.rt3.client.renderedObjects
 import org.openrndr.Program
-import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.Drawer
 import org.openrndr.draw.LineCap
 import org.openrndr.draw.isolated
@@ -18,7 +17,7 @@ import org.openrndr.shape.Rectangle
 import java.lang.IllegalStateException
 import kotlin.math.*
 
-private typealias GameSlot = com.roshanah.recursiveTac.client.elements.Slot
+private typealias GameSlot = com.roshanah.rt3.client.elements.Slot
 
 class GameRenderer(pos: Vector2, size: Double, val program: Program) {
     val objects: MutableList<Slot> = mutableListOf()

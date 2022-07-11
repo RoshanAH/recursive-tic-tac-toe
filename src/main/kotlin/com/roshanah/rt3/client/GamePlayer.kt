@@ -1,8 +1,7 @@
-package com.roshanah.recursiveTac.client
+package com.roshanah.rt3.client
 
-import com.roshanah.recursiveTac.client.elements.Game
-import com.roshanah.recursiveTac.client.elements.Player
-import java.util.*
+import com.roshanah.rt3.client.elements.Game
+import com.roshanah.rt3.client.elements.Player
 
 
 class GamePlayer {
