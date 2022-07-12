@@ -85,6 +85,27 @@ class Game : Slot {
         return out
     }
 
+    operator fun set(index: List<Int>, value: Slot) {
+        var current: Slot = this
+        var i = 0
+        while (i in 0 until index.size - 1) {
+            val slot = index[i]
+            if (current !is Game) break
+            current = current[slot / 3][slot % 3]!!
+            i++
+        }
+
+        require(current is Game){
+            "Cannot modify Game, indexed element must be Symbol"
+        }
+
+        i++
+        val slot = index[i]
+        current[slot / 3][slot % 3] = value
+    }
+
+    operator fun set(index: SlotIndex, value: Slot) = set(index.stack, value)
+
     operator fun get(slot: SlotIndex) = getSlot(slot.stack)
     operator fun get(slot: List<Int>) = getSlot(slot)
 
@@ -139,7 +160,17 @@ class Game : Slot {
     fun positionToMove(slot: SlotIndex) = positionToMove(slot.stack)
 
     fun foreachIndexed(action: (SlotIndex, Slot) -> Unit) {
-        for
+        val slotStack = mutableListOf(0)
+        while (true) {
+            action(slotStack.slotIndex, this[slotStack])
+            if (slotStack.size < depth + 1) {
+                slotStack.add(0)
+            } else {
+                while (slotStack.lastOrNull() == 8) slotStack.removeLast()
+                if (slotStack.isEmpty()) break
+                slotStack[slotStack.lastIndex]++
+            }
+        }
     }
 
     fun foreach(action: (Slot) -> Unit) = foreachIndexed { _, s -> action(s) }
@@ -206,6 +237,8 @@ class Game : Slot {
     fun iterate(e: (Int, Int) -> Unit) {
         for (r in 0..2) for (c in 0..2) e(r, c)
     }
+
+
 
     enum class State(val finished: Boolean, val hasWinner: Boolean) {
         X(true, true),
