@@ -99,7 +99,6 @@ class Game : Slot {
             "Cannot modify Game, indexed element must be Symbol"
         }
 
-        i++
         val slot = index[i]
         current[slot / 3][slot % 3] = value
     }

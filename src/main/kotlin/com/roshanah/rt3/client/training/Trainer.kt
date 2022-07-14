@@ -33,12 +33,12 @@ class Trainer(val depth: Int, network: Network) {
 
     constructor(depth: Int, layers: Int, nodes: Int) : this(
         depth,
-        Network.random((1..depth + 1).sumOf { 9.0.pow(it).toInt() } * 2, layers, nodes, 3)
+        Network.random((1..depth + 1).sumOf { 9.0.pow(it).toInt() } * 2, layers, nodes, 1)
     )
 
     constructor(depth: Int) : this(
         depth,
-        Network.random((1..depth + 1).sumOf { 9.0.pow(it).toInt() } * 2, depth + 2, (1..depth + 1).sumOf { 9.0.pow(it).toInt() }, 3)
+        Network.random((1..depth + 1).sumOf { 9.0.pow(it).toInt() } * 2, depth + 2, (1..depth + 1).sumOf { 9.0.pow(it).toInt() }, 1)
     )
 
     fun update(){
@@ -61,9 +61,9 @@ class Trainer(val depth: Int, network: Network) {
                     })
                     if(winRatio.size >= 2) state = State.DESCENT
                     val key = when {
-                        gameState == Game.State.TIE -> listOf(0.0, 1.0, 0.0)
-                        gameState.player == studentPlayer -> listOf(1.0, 0.0, 0.0)
-                        else -> listOf(0.0, 0.0, 1.0)
+                        gameState == Game.State.TIE -> listOf(0.5)
+                        gameState.player == studentPlayer -> listOf(1.0)
+                        else -> listOf(0.0)
                     }
                     player = GamePlayer(depth)
                     currentGame.forEach { moveSet += Pair(it, key) }
@@ -87,6 +87,7 @@ class Trainer(val depth: Int, network: Network) {
                 moveSet.clear()
                 teacher = student
                 student = student.random
+                state = State.PLAY
             }
         }
     }
@@ -103,23 +104,19 @@ fun Network.calculateMove(player: GamePlayer): Int {
     }
     val game = player.game
     var bestMove = 0
-    var bestOutcome: List1d = fire(game.getMove(0, player.player).encode(player.player)).last()
-    for(i in 1 until possible){
-        val outcome = fire(game.getMove(i, player.player).encode(player.player)).last()
+    var bestOutcome: Double = fire(game.getMove(0, player.player).encode(player.player)).last()[0]
+//    println("${player.pl jhbjhbjhbayer}: move 0, outcome $bestOutcome")
 
-        val noLoss = outcome.last() <= 0 && bestOutcome.last() <= 0
-        val higherWin = outcome[0] > bestOutcome[0]
-        val lowerLoss = outcome.last() < bestOutcome.last()
-        if(noLoss) {
-            if(higherWin){
-                bestMove = i
-                bestOutcome = outcome
-            }
-        } else if (lowerLoss) {
+    for(i in 1 until possible){
+        val outcome = fire(game.getMove(i, player.player).encode(player.player)).last()[0]
+//        println("${player.player}: move $i, outcome $outcome")
+        if (outcome > bestOutcome){
             bestMove = i
             bestOutcome = outcome
         }
     }
+
+    if(bestOutcome == 0.0) return (0 until possible).random()
 
     return bestMove
 

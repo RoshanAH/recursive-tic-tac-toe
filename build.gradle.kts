@@ -4,10 +4,10 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.gradle.nativeplatform.platform.internal.DefaultNativePlatform
 import org.jetbrains.kotlin.utils.addToStdlib.ifTrue
 
-group = "org.openrndr.template"
+group = "com.roshanah.rt3"
 version = "0.4.0"
 
-val applicationMainClass = "TemplateProgramKt"
+val applicationMainClass = "client.Mainkt"
 
 /**  ## additional ORX features to be added to this project */
 val orxFeatures = setOf(
