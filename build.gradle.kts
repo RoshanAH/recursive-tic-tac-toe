@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.utils.addToStdlib.ifTrue
 group = "org.openrndr.template"
 version = "0.4.0"
 
-val applicationMainClass = "TemplateProgramKt"
+val applicationMainClass = "Mainkt"
 
 /**  ## additional ORX features to be added to this project */
 val orxFeatures = setOf(
@@ -103,6 +103,9 @@ dependencies {
 //    implementation(libs.jsoup)
 //    implementation(libs.gson)
 //    implementation(libs.csv)
+
+    implementation("io.ktor:ktor-server-netty:2.0.2")
+    implementation("io.ktor:ktor-network:2.0.2")
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlin.logging)

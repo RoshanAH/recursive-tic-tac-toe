@@ -1,5 +1,6 @@
 package com.roshanah.rt3.client.elements
 
+import com.roshanah.rt3.client.training.Trainer
 import java.lang.IllegalArgumentException
 import java.util.ArrayList
 import kotlin.math.pow
@@ -35,11 +36,21 @@ class Game : Slot {
         this.slots = slots
     }
 
+    override var active: Boolean = super.active
+        set(value) {
+            field = value
+            if (!value) iterate { r, c ->
+                slots[r][c]?.active = false
+            }
+        }
+
     private fun getMove(move: Int, p: Player, moveStack: MutableList<Int>): Game {
         var move = move
         val totalMoves = possibleMoves
         require(totalMoves > 0) { "Attempted move $move on finished game" }
-        require(!(move < 0 || move >= totalMoves)) { "move " + move + " not in range [0, " + (totalMoves - 1) + "]" }
+        require(!(move < 0 || move >= totalMoves)) {
+            "move " + move + " not in range [0, " + (totalMoves - 1) + "]"
+        }
         var slotIndex = 0
         var newSlot: Slot? = null
         row@ for (r in 0..2) for (c in 0..2) {
@@ -84,6 +95,26 @@ class Game : Slot {
 
         return out
     }
+
+    operator fun set(index: List<Int>, value: Slot) {
+        var current: Slot = this
+        var i = 0
+        while (i in 0 until index.size - 1) {
+            val slot = index[i]
+            if (current !is Game) break
+            current = current[slot / 3][slot % 3]!!
+            i++
+        }
+
+        require(current is Game) {
+            "Cannot modify Game, indexed element must be Symbol"
+        }
+
+        val slot = index[i]
+        current[slot / 3][slot % 3] = value
+    }
+
+    operator fun set(index: SlotIndex, value: Slot) = set(index.stack, value)
 
     operator fun get(slot: SlotIndex) = getSlot(slot.stack)
     operator fun get(slot: List<Int>) = getSlot(slot)
@@ -139,7 +170,17 @@ class Game : Slot {
     fun positionToMove(slot: SlotIndex) = positionToMove(slot.stack)
 
     fun foreachIndexed(action: (SlotIndex, Slot) -> Unit) {
-        for
+        val slotStack = mutableListOf(0)
+        while (true) {
+            action(slotStack.slotIndex, this[slotStack])
+            if (slotStack.size < depth + 1) {
+                slotStack.add(0)
+            } else {
+                while (slotStack.lastOrNull() == 8) slotStack.removeLast()
+                if (slotStack.isEmpty()) break
+                slotStack[slotStack.lastIndex]++
+            }
+        }
     }
 
     fun foreach(action: (Slot) -> Unit) = foreachIndexed { _, s -> action(s) }
@@ -207,6 +248,21 @@ class Game : Slot {
         for (r in 0..2) for (c in 0..2) e(r, c)
     }
 
+    override fun toString(): String {
+        val char: Slot.() -> Char = {
+            when (this) {
+                is Game -> 'G'
+                is Symbol -> if(state == Symbol.State.BLANK) ' ' else state.toString()[0]
+                else -> 'E'
+            }
+        }
+        return "${slots[0][0]?.char()}│${slots[0][1]?.char()}│${slots[0][2]?.char()}\n" +
+                "─╋─╋─\n" +
+                "${slots[1][0]?.char()}│${slots[1][1]?.char()}│${slots[1][2]?.char()}\n" +
+                "─╋─╋─\n" +
+                "${slots[2][0]?.char()}│${slots[2][1]?.char()}│${slots[2][2]?.char()}"
+    }
+
     enum class State(val finished: Boolean, val hasWinner: Boolean) {
         X(true, true),
         O(true, true),
@@ -235,22 +291,22 @@ data class SlotIndex internal constructor(val stack: List<Int>) {
         this.int = int
     }
 
-    operator fun plus(other: SlotIndex) : SlotIndex {
-        require (depth == other.depth){
+    operator fun plus(other: SlotIndex): SlotIndex {
+        require(depth == other.depth) {
             "Depth of $depth does not match other depth of ${other.depth}"
         }
-        return (int + other.int).slotIndex
+        return (int + other.int).slotIndex(depth)
     }
 
-    operator fun minus(other: SlotIndex) : SlotIndex {
-        require (depth == other.depth){
+    operator fun minus(other: SlotIndex): SlotIndex {
+        require(depth == other.depth) {
             "Depth of $depth does not match other depth of ${other.depth}"
         }
-        return (int - other.int).slotIndex
+        return (int - other.int).slotIndex(depth)
     }
 
-    operator fun compareTo(other: SlotIndex) : Int {
-        require (depth == other.depth){
+    operator fun compareTo(other: SlotIndex): Int {
+        require(depth == other.depth) {
             "Depth of $depth does not match other depth of ${other.depth}"
         }
         return int.compareTo(other.int)
@@ -259,15 +315,16 @@ data class SlotIndex internal constructor(val stack: List<Int>) {
 
 val List<Int>.slotIndex get() = SlotIndex(this)
 
-val Int.slotIndex: SlotIndex get() = SlotIndex(buildList {
-            var value = this@slotIndex
-            var current: Int = value
-            do {
-                val rem = current % 9
-                val quotient = current / 9
-                add(quotient)
-            } while (rem != 0)
-        }
+fun Int.slotIndex(depth: Int) = SlotIndex(buildList {
+        var value = this@slotIndex
+        var current: Int = value
+        do {
+            val rem = current % 9
+            current /= 9
+            add(rem)
+        } while (current != 0)
+        while(size < depth + 1) add(0, 0)
+    }
 )
 
 

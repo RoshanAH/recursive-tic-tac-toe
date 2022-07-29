@@ -4,10 +4,7 @@ import com.roshanah.rt3.client.*
 import com.roshanah.rt3.client.elements.Game
 import com.roshanah.rt3.client.rendering.*
 import com.roshanah.rt3.client.rendering.GameRenderer.Companion.padding
-import org.openrndr.KEY_BACKSPACE
-import org.openrndr.KEY_ENTER
-import org.openrndr.MouseButton
-import org.openrndr.Program
+import org.openrndr.*
 import org.openrndr.draw.FontImageMap
 import org.openrndr.draw.isolated
 import org.openrndr.math.Matrix44
@@ -19,7 +16,7 @@ import kotlin.math.E
 import kotlin.math.pow
 
 open class Scene(val program: Program, val transform: Matrix44) {
-    var active = true
+    val active get() = scenes.contains(this)
     val buttons = mutableListOf<Button>()
     val textFields = mutableListOf<TextField>()
     protected open fun Program.renderBody() {}
@@ -27,6 +24,7 @@ open class Scene(val program: Program, val transform: Matrix44) {
     init {
         program.apply {
             mouse.buttonDown.listen {
+                if (!active) return@listen
                 if (it.button != MouseButton.LEFT) return@listen
                 for (button in buttons) {
                     if (button.targetOpacity == 0.0) continue
@@ -46,6 +44,7 @@ open class Scene(val program: Program, val transform: Matrix44) {
             }
 
             keyboard.character.listen { event ->
+                if(!active) return@listen
                 textFields.forEach { field ->
                     if (field.focused) {
                         field.text += event.character
@@ -55,7 +54,8 @@ open class Scene(val program: Program, val transform: Matrix44) {
             }
 
             keyboard.keyDown.listen { event ->
-                when(event.key) {
+                if(!active) return@listen
+                when (event.key) {
                     KEY_BACKSPACE -> textFields.forEach {
                         if (it.focused && it.text.isNotEmpty())
                             it.text = it.text.substring(0, it.text.length - 1)
@@ -66,6 +66,7 @@ open class Scene(val program: Program, val transform: Matrix44) {
                 }
             }
         }
+
     }
 
     private val bounds = Rectangle(0.0, 0.0, 1.0, 1.0)
@@ -144,6 +145,44 @@ open class Scene(val program: Program, val transform: Matrix44) {
         }
     }
 
+    fun attachInput(renderer: GameRenderer, onMove: (Int) -> Unit) {
+        val canvasToBoard: (Vector2) -> Vector2 = {
+            (sizeTransform * cameraTransform * transform * renderer.fromBoard).inversed * it
+        }
+        program.apply {
+            mouse.moved.listen {
+                if (active) renderer.mouse = canvasToBoard(it.position)
+            }
+
+            mouse.buttonDown.listen {
+                if (active) {
+                    when (it.button) {
+                        MouseButton.LEFT -> {
+                            val move: Int = renderer.hoveredMove ?: return@listen
+                            onMove(move)
+                        }
+                    }
+                }
+            }
+
+            keyboard.keyDown.listen {
+                if (active) {
+                    when (it.key) {
+                        KEY_SPACEBAR -> renderer.showMoves = true
+                    }
+                }
+            }
+
+            keyboard.keyUp.listen {
+                if (active) {
+                    when (it.key) {
+                        KEY_SPACEBAR -> renderer.showMoves = false
+                    }
+                }
+            }
+        }
+
+    }
 }
 
 fun FontImageMap.width(text: String): Double = text.sumOf { characterWidth(it) }
@@ -153,7 +192,7 @@ class MenuBuilder(val program: Program, val transform: Matrix44) {
     var depth = 0
     val scene: Scene = object : Scene(program, transform) {
 
-        init{
+        init {
             board.game = Game(depth)
         }
 
@@ -161,22 +200,23 @@ class MenuBuilder(val program: Program, val transform: Matrix44) {
             board.render()
         }
     }
+    var onEnter: () -> Unit = {}
 
-    fun button(slot: List<Int>, sprite: List<Shape>, builder: MenuBuilder.() -> Unit) {
+    fun button(slot: List<Int>, sprite: List<Shape>, builder: MenuBuilder.() -> Unit) : Button{
         if (slot.size - 1 > depth) depth = slot.size - 1
         val buttonTransform = transform * board.fromBoard * getTransform(slot)
         val sceneBuilder = MenuBuilder(program, buttonTransform)
         sceneBuilder.builder()
 
-        scene.buttons.add(
-            Button(
+        val button = Button(
                 buttonTransform,
                 sprite,
                 1.0,
                 0.0,
                 sceneBuilder.scene
             )
-        )
+        scene.buttons.add(button)
+        return button
     }
 
     fun button(slot: List<Int>, sprite: List<Shape>, clickScene: Scene) {
@@ -226,6 +266,15 @@ class MenuBuilder(val program: Program, val transform: Matrix44) {
     }
 
     fun button(slot: Int, sprite: List<Shape>, builder: MenuBuilder.() -> Unit) = button(listOf(slot), sprite, builder)
+    fun button(slot: Int, sprite: List<Shape>, builder: MenuBuilder.() -> Unit, onClick: Button.() -> Unit): Button{
+        val button = button(listOf(slot), sprite, builder)
+        val old = button.onClick
+        button.onClick = {
+            old()
+            onClick(button)
+        }
+        return button
+    }
     fun button(slot: Int, sprite: List<Shape>, clickScene: Scene) = button(listOf(slot), sprite, clickScene)
 }
 

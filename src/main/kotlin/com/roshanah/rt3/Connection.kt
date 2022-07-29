@@ -1,35 +1,56 @@
 package com.roshanah.rt3
 
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.yield
-import java.io.PrintStream
-import java.net.Socket
-import java.util.*
+import io.ktor.network.selector.*
+import io.ktor.network.sockets.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.*
+import java.net.SocketException
+import kotlin.coroutines.CoroutineContext
 
-class Connection(val socket: Socket) {
-    private val output: PrintStream = PrintStream(socket.getOutputStream())
-    private val input: Scanner = Scanner(socket.getInputStream())
+
+
+val selectorManager = SelectorManager(Dispatchers.IO)
+class Connection private constructor(
+    val socket: Socket,
+    val scope: CoroutineScope?,
+    val dispatcher: CoroutineContext?
+) {
+
+    constructor(socket: Socket, scope: CoroutineScope) : this(socket, scope, null)
+    constructor(socket: Socket, dispatcher: CoroutineContext) : this(socket, null, dispatcher)
+
+    private val output = socket.openWriteChannel(autoFlush = true)
+    private val input = socket.openReadChannel()
 
     var onDisconnect: () -> Unit = { }
     var onReceived: (String) -> Unit = { }
     private var queryRequested = false
     private var response = ""
 
-    fun broadcast(s: String) {
-        output.println(s)
+    fun broadcast(s: String) = launch {
+        output.writeStringUtf8("$s\n")
     }
 
+    suspend fun suspendedWrite(s: String) = output.writeStringUtf8("$s\n")
+
     suspend fun query(s: String): String {
-        output.println(s)
+        output.writeStringUtf8("$s\n")
         queryRequested = true
         while (queryRequested) yield()
         return response
     }
 
-    fun run() {
-        while (socket.isConnected && input.hasNext()) receive(input.nextLine())
+    fun run() = launch {
+        try {
+            while (!socket.isClosed) {
+//                println("reading next input")
+                val input = input.readUTF8Line() ?: break
+//                println("received: $input")
+                receive(input)
+            }
+        } catch (e: SocketException){
+            socket.close()
+        }
         onDisconnect()
     }
 
@@ -46,24 +67,8 @@ class Connection(val socket: Socket) {
         }
         onReceived(s)
     }
+
+     fun launch(function: suspend CoroutineScope.() -> Unit) = scope?.launch(block=function)
+        ?: if (dispatcher != null) GlobalScope.launch(dispatcher, block = function)
+        else error("")
 }
-
-//class Reciever(val type: String?) {
-//    val children
-//
-//    private constructor(type: String, vararg recievers: Reciever) : this(type){
-//
-//    }
-//
-//}
-
-// TODO rework concurrency system
-
-//class RecieverBuilder(val command: String){
-//
-//
-//
-//    fun command(type: String, body: RecieverBuilder.() -> Unit){
-//
-//    }
-//}

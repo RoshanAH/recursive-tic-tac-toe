@@ -59,17 +59,15 @@ class HostedGame(player1: Connection, initialGame: GamePlayer, player1Type: Play
             player.broadcast("return:invalid")
             return
         }
-        player.broadcast("return:valid")
-        if (player1 !== player && player1 != null) player1?.broadcast("game:$s")
-        if (player2 !== player && player2 != null) player2?.broadcast("game:$s")
-        if (!game.game.active) {
-            try {
+        player.launch{
+            player.suspendedWrite("return:valid")
+            if (player1 !== player) player1?.suspendedWrite("game:$s\ninfo:Game finished")
+            if (player2 !== player) player2?.suspendedWrite("game:$s\ninfo:Game finished")
+            if (!game.game.active) {
                 player1?.socket?.close()
                 player2?.socket?.close()
-            } catch (e: IOException) {
-                e.printStackTrace()
+                onFinish()
             }
-            onFinish()
         }
     }
 

@@ -1,9 +1,18 @@
 package com.roshanah.rt3.client
 
+import com.roshanah.rt3.client.elements.Game
+import com.roshanah.rt3.client.elements.Player
+import com.roshanah.rt3.client.rendering.create
+import com.roshanah.rt3.client.rendering.join
 import com.roshanah.rt3.client.rendering.times
 //import com.roshanah.recursiveTac.client.scenes.MainMenu
 import com.roshanah.rt3.client.scenes.Scene
 import com.roshanah.rt3.client.scenes.mainMenu
+import com.roshanah.rt3.client.training.diagnol1Mirror
+import com.roshanah.rt3.client.training.diagnol2Mirror
+import com.roshanah.rt3.client.training.invoke
+import com.roshanah.rt3.client.training.normal
+import kotlinx.coroutines.delay
 import org.openrndr.*
 import org.openrndr.color.ColorRGBa
 import org.openrndr.draw.*
@@ -12,6 +21,8 @@ import org.openrndr.math.Vector2
 import org.openrndr.math.transforms.transform
 import kotlin.math.E
 import kotlin.math.pow
+
+val SERVER_IP = ""
 
 var globalCameraPos = Vector2(0.5, 0.5)
     private set(value) {
@@ -102,47 +113,6 @@ fun main() = application {
             }
         }
 
-//        var net = Network.random(2, 1, 100, 1)
-////        var net = Network.deserialize("[[[0.33740999424066503, -0.744815912444695, -0.6141708903689936], [-0.7686361632872968, -0.6956511079038626, -0.31830291627848895], [0.5462729066456912, 0.18108963821736188, 0.7712817132301664]], [[0.08626614790625421, 0.30875598674710325, 0.48654591879515413, -0.16166702599224775]]]")
-//        println(net)
-//        println(net.serialized)
-//        val x = listOf(
-//            listOf(0.0, 0.0),
-//            listOf(1.0, 0.0),
-//            listOf(0.0, 1.0),
-//            listOf(1.0, 1.0),
-//        )
-//        val y = listOf(
-//            listOf(0.0),
-//            listOf(1.0),
-//            listOf(1.0),
-//            listOf(0.0),
-//        )
-//
-//        println("training took: ${measureNanoTime { for(i in 0 until 5000){
-//            var sum = net * 0.0
-//            for(d in x.indices)
-//                sum += net.computeGradient(x[d], y[d])
-//            sum /= x.size.toDouble()
-//            net = net.descend(sum, 0.1)
-//        } } * 1e-9} seconds")
-//
-//        println(net)
-//
-//        for(i in x.indices){
-//            println("(${x[i]}, ${y[i]}) -> ${net.fire(x[i]).last()}")
-//        }
-
-
-//        val testGame = Game(0)
-//            .getMove(0, Player.X)
-//            .getMove(3, Player.O)
-//            .getMove(6, Player.X)
-//            .getMove(4, Player.O)
-//            .getMove(1, Player.X)
-//
-//        println(testGame.encode(Player.O))
-
 
         extend {
             if (transformRecalculate) {
@@ -160,6 +130,7 @@ fun main() = application {
                 fontMap = font
 //                testRender()
                 render()
+//                renderIcon()
             }
             drawer.image(target.colorBuffer(0))
 
@@ -188,13 +159,13 @@ fun Program.testRender() {
 
 }
 
-//fun Program.renderIcon(){
-//    drawer.view *= sizeTransform
-//
-//    drawer.fill = ColorRGBa.PINK
-//    drawer.stroke = null
-//    drawer.shapes(ai)
-//}
+fun Program.renderIcon(){
+    drawer.view *= sizeTransform
+
+    drawer.fill = ColorRGBa.PINK
+    drawer.stroke = null
+    drawer.shapes(join)
+}
 
 
 
