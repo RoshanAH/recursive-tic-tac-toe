@@ -22,7 +22,7 @@ import org.openrndr.math.transforms.transform
 import kotlin.math.E
 import kotlin.math.pow
 
-val SERVER_IP = ""
+const val SERVER_IP = "162.204.226.34"
 
 var globalCameraPos = Vector2(0.5, 0.5)
     private set(value) {
@@ -107,9 +107,11 @@ fun main() = application {
                 scale(minLen)
             }
 
-            target = renderTarget(width, height) {
-                colorBuffer()
-                depthBuffer()
+            if (width > 0 && height > 0) {
+                target = renderTarget(width, height) {
+                    colorBuffer()
+                    depthBuffer()
+                }
             }
         }
 
@@ -125,16 +127,18 @@ fun main() = application {
 
             renderedObjects = 0
 
-            drawer.isolatedWithTarget(target) {
-                clear(background)
-                fontMap = font
+            if (window.size.x > 0 && window.size.y > 0) {
+                drawer.isolatedWithTarget(target) {
+                    clear(background)
+                    fontMap = font
 //                testRender()
-                render()
+                    render()
 //                renderIcon()
-            }
-            drawer.image(target.colorBuffer(0))
+                }
+                drawer.image(target.colorBuffer(0))
 
 //            println("Rendered Objects: $renderedObjects")
+            }
         }
     }
 }

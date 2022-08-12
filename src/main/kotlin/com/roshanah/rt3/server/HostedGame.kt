@@ -61,9 +61,9 @@ class HostedGame(player1: Connection, initialGame: GamePlayer, player1Type: Play
         }
         player.launch{
             player.suspendedWrite("return:valid")
-            if (player1 !== player) player1?.suspendedWrite("game:$s\ninfo:Game finished")
-            if (player2 !== player) player2?.suspendedWrite("game:$s\ninfo:Game finished")
             if (!game.game.active) {
+                if (player1 !== player) player1?.suspendedWrite("game:$s\ninfo:Game finished")
+                if (player2 !== player) player2?.suspendedWrite("game:$s\ninfo:Game finished")
                 player1?.socket?.close()
                 player2?.socket?.close()
                 onFinish()

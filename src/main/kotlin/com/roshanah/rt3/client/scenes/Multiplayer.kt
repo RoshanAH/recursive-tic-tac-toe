@@ -22,6 +22,10 @@ class Multiplayer(program: Program, transform: Matrix44, serial: String, val con
                 pendingMove = false
             }
         }
+
+        attachSaving(player) {
+            println(it)
+        }
     }
 
     override fun Program.renderBody() {

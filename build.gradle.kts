@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.utils.addToStdlib.ifTrue
 group = "org.openrndr.template"
 version = "0.4.0"
 
-val applicationMainClass = "Mainkt"
+val applicationMainClass = "com.roshanah.rt3.client.MainKt"
 
 /**  ## additional ORX features to be added to this project */
 val orxFeatures = setOf(
@@ -157,7 +157,7 @@ tasks {
                         from("data") {
                             include("**/*")
                         }
-                        into("build/jpackage/openrndr-application/data")
+                        into("build/jpackage/rt3/data")
                     }
                 }
                 OperatingSystem.MAC_OS -> {
@@ -187,7 +187,8 @@ tasks.findByName("jpackageZip")?.dependsOn("jpackage")
 
 runtime {
     jpackage {
-        imageName = "openrndr-application"
+        imageName = "rt3"
+        imageOptions = listOf("--win-console")
         skipInstaller = true
         if (OperatingSystem.current() == OperatingSystem.MAC_OS) jvmArgs.add("-XstartOnFirstThread")
     }
@@ -270,4 +271,5 @@ class Openrndr {
         }
     }
 }
+
 val openrndr = Openrndr()

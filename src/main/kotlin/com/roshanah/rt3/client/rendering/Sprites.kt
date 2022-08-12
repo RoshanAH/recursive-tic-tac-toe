@@ -152,6 +152,11 @@ val join = buildList {
 
 }
 
+// TODO make this an actual folder
+val folder = buildList {
+    add(RoundedRectangle(0.0, 0.0, 1.0, 1.0, 0.3).shape)
+}
+
 
 private val RoundedRectangle.shape: Shape
     get() = Shape(listOf(this.contour))

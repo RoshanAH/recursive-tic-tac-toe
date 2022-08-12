@@ -64,20 +64,20 @@ val diagnol2Mirror = Transform(d2, d2)
 
 operator fun Game.compareTo(other: Game): Int {
 
-for (r in 0 until 3) {
-    for (c in 0 until 3) {
-        val thisSlot = this[r][c]
-        val otherSlot = other[r][c]
+    for (r in 0 until 3) {
+        for (c in 0 until 3) {
+            val thisSlot = this[r][c]
+            val otherSlot = other[r][c]
 
-        if (thisSlot == null && otherSlot == null)
-            continue
-        if (thisSlot is Symbol && otherSlot is Symbol) {
-            if (thisSlot.state == otherSlot.state)
+            if (thisSlot == null && otherSlot == null)
                 continue
+            if (thisSlot is Symbol && otherSlot is Symbol) {
+                if (thisSlot.state == otherSlot.state)
+                    continue
 
-            val value: Symbol.() -> Int = {
-                when (this.state) {
-                    Symbol.State.BLANK -> 0
+                val value: Symbol.() -> Int = {
+                    when (this.state) {
+                        Symbol.State.BLANK -> 0
                         Symbol.State.O -> 1
                         Symbol.State.X -> 2
                     }
@@ -156,6 +156,24 @@ fun Game.encode(player: Player) = buildList {
 
         add(
             if (it is Symbol && (it.state == player.other().symbolState)) // opponent
+                1.0
+            else
+                0.0
+        )
+    }
+}
+
+fun Game.rawEncode(player: Player) = buildList {
+    foreach {
+        add(
+            if (it is Symbol && (it.state == player.symbolState)) // self
+                1.0
+            else
+                0.0
+        )
+
+        add(
+            if (it is Symbol && (it.state == player.symbolState)) // opponent
                 1.0
             else
                 0.0

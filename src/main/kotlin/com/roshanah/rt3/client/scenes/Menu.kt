@@ -1,15 +1,19 @@
 package com.roshanah.rt3.client.scenes
 
 import com.roshanah.rt3.Connection
+import com.roshanah.rt3.client.GamePlayer
+import com.roshanah.rt3.client.SERVER_IP
 import com.roshanah.rt3.client.rendering.*
 import com.roshanah.rt3.client.scenes
 import com.roshanah.rt3.client.zoom
 import com.roshanah.rt3.selectorManager
 import io.ktor.network.sockets.*
+import io.ktor.util.*
 import kotlinx.coroutines.yield
 import org.openrndr.Program
 import org.openrndr.launch
 import org.openrndr.math.Matrix44
+import java.lang.IllegalArgumentException
 
 private lateinit var connection: Connection
 
@@ -51,6 +55,41 @@ fun mainMenu(program: Program) = buildMenu(program, Matrix44.IDENTITY) {
                 }
                 game
             })
+            button(4, folder, {}, load@ {
+                program.launch {
+                    lateinit var serial: String
+                    while (true) {
+                        try {
+                            println("Input game serial: ")
+                            serial = readLine() ?: throw IllegalArgumentException()
+                            GamePlayer(serial)
+                            break
+                        }catch (_: IllegalArgumentException){
+                            println("Invalid game serial")
+                        }
+                    }
+                    lateinit var player: String
+                    while (true) {
+                        println("Please specify 'X' or 'O'")
+                        val input = (readLine() ?: continue).toUpperCasePreservingASCIIRules()
+
+                        if (input != "X" && input != "O") {
+                            println("That is not X or O")
+                            continue
+                        }
+                        player = input
+                        break
+                    }
+                    val number = connection.query("load:$serial,$player")
+                    println("Room number: $number")
+                    val transform = this@load.transform * getTransform(3)
+                    val game = Multiplayer(program, transform, serial, connection)
+                    connection.onReceived = { game.clientReceive(it) }
+                    scenes.add(game)
+                    zoom(game.transform)
+                    this@load.targetOpacity = 0.0
+                }
+            })
             button(3, join, {}, join@{
                 program.launch {
                     while (true) {
@@ -81,7 +120,7 @@ fun mainMenu(program: Program) = buildMenu(program, Matrix44.IDENTITY) {
         println("Connecting...")
 //        TODO replace this with actual server ip
         program.launch {
-            connection = Connection(aSocket(selectorManager).tcp().connect("127.0.0.1", 33584), this)
+            connection = Connection(aSocket(selectorManager).tcp().connect(SERVER_IP, 33584), this)
             connection.run()
             connection.onDisconnect = {
                 println("Lost connection")

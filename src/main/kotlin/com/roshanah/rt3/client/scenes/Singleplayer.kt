@@ -15,6 +15,9 @@ class Singleplayer(program: Program, transform: Matrix44, depth: Int) : Scene(pr
             player.makeMove(it)
             renderer.game = player.game
         }
+        attachSaving(player) {
+            println(it)
+        }
     }
 
     override fun Program.renderBody() = drawer.isolated {

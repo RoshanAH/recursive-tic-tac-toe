@@ -2,214 +2,38 @@ package com.roshanah.rt3.client.training
 
 import com.roshanah.rt3.client.GamePlayer
 import com.roshanah.rt3.client.elements.*
+
 import com.roshanah.rt3.ml.List1d
 
 import com.roshanah.rt3.ml.Network
+import kotlinx.coroutines.yield
 import kotlin.math.pow
+import kotlin.random.Random
 
 
-class Trainer(val depth: Int, network: Network) {
+class Trainer(val depth: Int, private val initialNetwork: Network) {
 
-    var player = GamePlayer(depth)
+    private var stopped = false
+    private var stepTerm: String? = null
+    private var yieldHertz: Double? = null
+    private var lastYield: Long = System.nanoTime()
+    private var statusListener = mutableSetOf<Pair<String, () -> Unit>>()
+    private var query: String? = null
+    fun listen(status: String, action: () -> Unit) {
+        statusListener += Pair(status, action)
+    }
+
+    var state = TrainerState(Game(depth), "initialized")
         private set
 
-    var teachers = mutableListOf(network)
-    var teacherIndex = 0
-        private set(value) {
-            field = value % teachers.size
-        }
-    val teacher: Network get() = teachers[teacherIndex]
-    var student: Network = network.random
-    var studentPlayer = Player.X
-        private set
-
-    var state = State.PLAY
-        private set
-
-    var totalGamesPlayed = 0
-        private set
-    var cost = 0.0
-        private set
-
-    var learningRate = 0.2
-    val moveSet = mutableSetOf<Pair<List<Double>, List<Double?>>>()
-
-
-    private val correctionStack = mutableListOf<CorrectionSet>()
-
-
-    //    A list of network outputs, for each player
-    val lastGames = GameMap()
+    var learningRate = 0.1
+    var minCost = 0.1
     var minWinRatio = 0.75
-
-    val winRatio: Double
-        get() {
-            var totalScore = 0.0
-            var games = 0
-            for (network in lastGames.values) {
-                for (game in network.values.filterNotNull()) {
-                    games++
-                    totalScore += game.score
-                }
-            }
-
-            return totalScore / games
+    var gameSampleSize = 1000
+        set(value) {
+            field = value + if (value % 2 == 1) 1 else 0
         }
 
-    val currentGame = mutableListOf<Move>()
-
-    fun update() {
-//        println("${currentGame.size}, ${correctionStack.size}, $state")
-        when (state) {
-            State.PLAY -> {
-                val evaluation = player.game.evaluate()
-                if (!evaluation.finished) {
-                    if (player.player == studentPlayer) {
-                        val move = student.calculateMove(player)
-                        currentGame += move
-                        player.makeMove(move.slot)
-                    } else
-                        player.makeMove(teacher.calculateMove(player).slot)
-                } else {
-
-                    val initial: Boolean = correctionStack.isEmpty()
-                    if (initial) {
-                        val score = when (evaluation.player) {
-                            studentPlayer -> 1.0
-                            !studentPlayer -> 0.0
-                            else -> 0.5
-                        }
-                        val last = lastGames[teacher][studentPlayer]
-                        val repeated: Boolean =
-                            last != null && last.history.containsAll(currentGame) && currentGame.containsAll(last.history)
-
-                        lastGames[teacher][studentPlayer] =
-                            GameMap.TeacherMap.LastGame(currentGame.map { it.copy() }, score, repeated)
-
-
-                        if (repeated) {
-                            reset()
-                        } else {
-                            state = if (evaluation.player == studentPlayer)
-                                State.WIN
-                            else
-                                State.CORRECTION
-                        }
-
-                    } else {
-                        state = if (evaluation.player == studentPlayer)
-                            State.WIN
-                        else
-                            State.CORRECTION
-                    }
-                }
-            }
-            State.WIN -> {
-                moveSet.addAll(currentGame.map { Pair(it.encoded, it.normalizedGame.encodeKey(it.normalSlot)) })
-                println(moveSet.any { element -> moveSet.filter { it != element }.any { it.first == element.first }})
-                reset()
-            }
-            State.CORRECTION -> {
-                for (i in correctionStack.size until currentGame.size) {
-                    correctionStack.add(
-                        CorrectionSet(
-                            currentGame[i].originalGame,
-                            currentGame[i].encoded,
-                            mutableSetOf(currentGame[i].slot)
-                        )
-                    )
-                }
-
-                while (correctionStack.last().moveSet.size >= correctionStack.last().game.possibleMoves) {
-                    correctionStack.removeLast()
-                    if (correctionStack.isEmpty()) {
-                        reset()
-                        return
-                    }
-                }
-
-//                  Undo the game so the student gets another chance to make a move
-                player.currentIndex = (correctionStack.lastIndex) * 2 + if (studentPlayer == Player.X) 0 else 1
-                player = player.fork()
-                while (currentGame.size > correctionStack.size - 1) currentGame.removeLast()
-//                println(moveSet.size)
-//                println(lastGames.values.any { it?.repeat == true })
-
-//                val t1 = currentGame.size
-//                val t2 = (if(studentPlayer == Player.X) player.moveHistory.filterIndexed {i, _ -> i % 2 == 0}
-//                else player.moveHistory.filterIndexed {i, _ -> i % 2 == 1}).size
-//                println("$t1, $t2")
-
-                val last = correctionStack.last()
-                val moveChoices = buildList {
-                    student.fire(last.inputs).last().forEachIndexed { i, value ->
-                        val stack = i.slotIndex(depth)
-                        if (last.game[stack].active)
-                            add(Pair(stack, value))
-                    }
-                }.sortedByDescending { it.second }
-
-                for (move in moveChoices) {
-                    if (!last.moveSet.contains(move.first)) {
-                        currentGame += moveFromOriginal(last.game, studentPlayer, move.first)
-                        player.makeMove(move.first)
-                        last.moveSet.add(move.first)
-                        state = State.PLAY
-                        break
-                    }
-                }
-
-            }
-            State.DESCENT -> {
-                var avg = student.zero
-                var totalCost = 0.0
-                moveSet.forEach {
-                    val fired = student.fire(it.first)
-//                    println(fired.last())
-//                    println(it.second + "\n")
-                    totalCost += fired.last().zip(it.second).sumOf {
-                        val key = it.second
-                        if (key != null) {
-                            (it.first - key).pow(2)
-                        } else 0.0
-                    }
-                    avg += student.computeGradient(fired, it.second)
-                }
-                avg /= moveSet.size
-                cost = totalCost / moveSet.size
-
-//                println(avg.formattedString())
-
-                state = if (winRatio >= minWinRatio) {
-                    State.REPLACEMENT
-                } else {
-                    State.PLAY
-                }
-
-                student = student.descend(avg, learningRate)
-            }
-            State.REPLACEMENT -> {
-                teachers += student
-                teachers.removeAt(0)
-                student = student.random
-                state = State.PLAY
-                lastGames.map.clear()
-                moveSet.clear()
-            }
-        }
-    }
-
-    private fun reset() {
-        player = GamePlayer(depth)
-        correctionStack.clear()
-        currentGame.clear()
-        totalGamesPlayed++
-        val complete = lastGames[teacher].complete
-        if (complete) teacherIndex++
-        state = if (teacherIndex == 0 && complete) State.DESCENT
-        else State.PLAY
-        studentPlayer = !studentPlayer
-    }
 
     constructor(depth: Int, layers: Int, nodes: Int) : this(
         depth,
@@ -217,11 +41,288 @@ class Trainer(val depth: Int, network: Network) {
     )
 
 
-    enum class State {
-        PLAY, CORRECTION, WIN, DESCENT, REPLACEMENT
+    suspend fun train() {
+        var teacher: Network = initialNetwork
+        var student: Network = initialNetwork.random
+        var totalGamesPlayed = 0
+
+        fun Game.State.score(player: Player) = when (this.player) {
+            player -> 1.0
+            !player -> 0.0
+            else -> 0.5
+        }
+
+        while (true) {
+            var blank = Game(depth)
+            val moveSet = mutableMapOf<List1d, CompoundKey>()
+            val fields: MutableMap<String, Any>.() -> Unit = {
+                this["games"] = totalGamesPlayed
+                this["moves"] = moveSet.size
+                this["student"] = student
+                this["teacher"] = teacher
+            }
+            var winRatio = 0.0
+            while (true) {
+                for (i in 0 until gameSampleSize step 2) {
+                    var moves = MoveSearch(setOf(), setOf())
+                    for (player in Player.values()) {
+                        winRatio += playGame(student, teacher, depth).score(player)
+                        moves += findMoves(blank, player, student, teacher)
+                        totalGamesPlayed++
+                        pass(blank, "played ${player.name} game"){
+                            fields()
+                            this["i"] = "game: $i of $gameSampleSize"
+                        }
+                    }
+
+                    for (move in moves.merge) {
+                        moveSet.putIfAbsent(move.encoded, mutableListOf(move.key))
+                        moveSet[move.encoded]?.add(move.key)
+                    }
+
+                }
+
+                winRatio /= gameSampleSize
+                pass(blank, "finished playing games") {
+                    fields()
+                    this["winRatio"] = winRatio
+                }
+                if (winRatio >= minWinRatio) break
+
+                var i = 0
+                while (true) {
+                    var sum = student.zero
+                    var cost = 0.0
+                    for ((input, key) in moveSet) {
+                        val fired = student.fire(input)
+                        val avg = key.avg
+                        cost += fired.last().zip(avg).sumOf { move -> move.second?.let { (move.first - it).pow(2) } ?: 0.0}
+                        val gradient = student.computeGradient(fired, avg)
+//                        println(gradient)
+                        sum += gradient
+                    }
+
+                    cost /= moveSet.size
+                    student = student.descend(sum / moveSet.size, learningRate)
+                    if (cost < minCost) break
+                    pass(blank, "training") {
+                        fields()
+                        this["cost"] = cost
+                        this["i"] = "training iteration $i"
+                    }
+                    i++
+                }
+            }
+            teacher = student
+            student = student.random
+            pass(blank, "replaced", fields)
+        }
     }
 
+    //    private suspend fun findMoves(
+//        game: Game,
+//        player: Player,
+//        student: Network,
+//        teachers: List<Network>,
+//    ): MoveSearch {
+//        val teacher = teachers.last()
+//        val moveChoices = student.getChoices(game, player)
+//        val drawMoves = mutableSetOf<Move>()
+//
+//        for (move in moveChoices) {
+////            exclude move if for any teacher there are no wins
+//            if (teachers.any { it != teacher && findMoves(game, player, student, it).winning.isEmpty() }) continue
+//            val moved = game(move.slot, player)
+//            pass(moved, "playing: student moved")
+//            val eval = moved.evaluate()
+//            if (eval.player == player) return MoveSearch(setOf(move), setOf()) // check if the student won
+//            val teacherMoved = moved(teacher.calculateMove(moved, player.other()).slot, player.other())
+//            pass(teacherMoved, "playing: teacher moved")
+//            if (teacherMoved.evaluate() == Game.State.TIE) {
+//                drawMoves += move
+//                continue
+//            }
+////            we do not need to check for win here because a teacher move will not produce a win
+//
+//            val search = findMoves(teacherMoved, player, student, teacher)
+//            if (search.winning.isNotEmpty()) return MoveSearch(
+//                search.winning,
+//                drawMoves + search.drawing
+//            ) // short circuit return here because we only want to find a win
+//            drawMoves += search.drawing // keep track of draws in case a win is not possible
+//        }
+//
+//        return MoveSearch(setOf(), drawMoves)
+//
+//    }
+
+    private suspend fun findMoves(
+        game: Game,
+        player: Player,
+        student: Network,
+        teacher: Network,
+        studentSeed: Long = student.makeSeed,
+        teacherSeed: Long = teacher.makeSeed
+    ): MoveSearch {
+        val moveChoices = student.getChoices(game, player).toMutableList()
+        val drawMoves = mutableSetOf<Move>()
+
+        while (moveChoices.isNotEmpty()) {
+            val movePair = moveChoices.randomBy(Random(studentSeed)) { it.second }
+            moveChoices.remove(movePair)
+            val move = movePair.first
+
+            val moved = game(move.slot, player)
+            pass(moved, "playing: student moved")
+            val eval = moved.evaluate()
+            if (eval.player == player) return MoveSearch(setOf(move), setOf()) // check if the student won
+            if (eval == Game.State.TIE) {
+                drawMoves += move
+                continue
+            }
+            val teacherMoved = moved(teacher.calculateMove(moved, player.other(), teacherSeed).slot, player.other())
+            pass(teacherMoved, "playing: teacher moved")
+            if (teacherMoved.evaluate() == Game.State.TIE) {
+                drawMoves += move
+                continue
+            }
+//            we do not need to check for win here because a teacher move will not produce a win
+
+            val search = findMoves(teacherMoved, player, student, teacher, studentSeed, teacherSeed)
+            if (search.winning.isNotEmpty()) return MoveSearch(
+                search.winning,
+                drawMoves + search.drawing
+            ) // short circuit return here because we only want to find a win
+            drawMoves += search.drawing // keep track of draws in case a win is not possible
+        }
+
+        return MoveSearch(setOf(), drawMoves)
+    }
+
+    suspend fun playGame(x: Network, o: Network, depth: Int): Game.State {
+        var game = Game(depth)
+        var state = Game.State.ONGOING
+
+        while (state.finished) {
+            game = game(x.calculateMove(game, Player.X).slot, Player.X)
+            state = game.evaluate()
+            pass(game, "played in test game")
+            if (state.finished) break
+            game = game(o.calculateMove(game, Player.O).slot, Player.O)
+            pass(game, "played in test game")
+        }
+
+        return state
+    }
+
+
+    private suspend fun pass(state: TrainerState = this.state) {
+        val time = System.nanoTime()
+        this.state = state
+
+        statusListener.forEach {
+            if (state.status.contains(it.first)) {
+                it.second()
+            }
+        }
+
+        if (1.0 / ((time - lastYield) * 1e-9) < (yieldHertz ?: 0.0)) {
+            yield()
+            lastYield = time
+        }
+        while (stopped) {
+            yield()
+            lastYield = time
+        }
+        stepTerm?.let {
+            if (state.status.contains(it)) {
+                stopped = true
+                stepTerm = null
+            }
+        }
+        query?.let {
+            if(state.fields[it] != null) {
+                stopped = true
+                query = null
+            }
+        }
+    }
+
+    private suspend fun pass(game: Game, status: String, fields: MutableMap<String, Any>.() -> Unit) {
+        val map = mutableMapOf<String, Any>()
+        map.fields()
+        pass(TrainerState(game, status, map.toMap()))
+    }
+
+    private suspend fun pass(game: Game, status: String) = pass(TrainerState(game, status))
+
+    fun play(yieldHertz: Double? = null) {
+        stopped = false
+        stepTerm = null
+        this.yieldHertz = yieldHertz
+    }
+
+    fun pause() {
+        stopped = true
+    }
+
+    fun step() = step("")
+
+    fun step(status: String) {
+        stopped = false
+        stepTerm = status
+    }
+
+    suspend fun query(field: String): Any {
+        stopped = false
+        query = field
+        while(!stopped) yield()
+        return state.fields[query]!!
+    }
 }
+
+private typealias CompoundKey = MutableList<List<Double?>>
+
+private val CompoundKey.avg: List<Double?>
+    get() {
+        operator fun List<Double?>.plus(other: List<Double?>) =
+            zip(other).map { it.second?.let { it1 -> it.first?.plus(it1) } }
+
+        var total = first().map<Double?, Double?> { 0.0 }
+        forEach { total = total + it }
+        return total.map { it?.let { it / size.toDouble() } }
+    }
+
+
+data class MoveSearch(val winning: Set<Move>, val drawing: Set<Move>) {
+    operator fun plus(other: MoveSearch) = MoveSearch(winning + other.winning, drawing + other.drawing)
+    val merge: Set<Move>
+        get() = buildSet {
+            addAll(winning)
+            val subtraction = drawing.toMutableSet()
+            winning.forEach { winMove ->
+                subtraction.removeAll { drawMove ->
+                    winMove.encoded == drawMove.encoded
+                }
+            }
+            addAll(subtraction)
+        }
+}
+
+class TrainerState(val game: Game, val status: String, val fields: Map<String, Any> = mapOf())
+
+fun <E> Collection<E>.randomBy(random: Random = Random.Default, predicate: (E) -> Double): E {
+    val total = sumOf(predicate)
+    if (total <= 0.0) return random(random)
+    var rand = random.nextDouble() * total
+    for (e in this) {
+        rand -= predicate(e)
+        if (rand <= 0.0) return e
+    }
+
+    return last()
+}
+
 
 fun Game.encodeKey(slot: SlotIndex): List<Double?> {
     val out = mutableListOf<Double?>()
@@ -239,46 +340,60 @@ fun Game.encodeKey(slot: SlotIndex): List<Double?> {
 }
 
 
-fun Network.calculateMove(player: GamePlayer): Move {
-    val (normal, transform) = player.game.normal
-    val inputs = buildList {
-        normal.foreach {
-            add(
-                if (it is Symbol && (it.state == player.player.symbolState)) // self
-                    1.0
-                else
-                    0.0
-            )
+operator fun Game.invoke(move: SlotIndex, player: Player) = this(positionToMove(move), player)
 
-            add(
-                if (it is Symbol && (it.state == player.player.other().symbolState)) // opponent
-                    1.0
-                else
-                    0.0
-            )
+
+val Network.makeSeed: Long get() = Random.Default.nextLong(Long.MAX_VALUE / (3.0.pow(inputs / 2 + 1).toLong() - 1))
+val List1d.encodeInput: Long
+    get() {
+        var total: Long = 0
+        for (i in indices step 2) {
+            total +=
+                (if (this[i] == 0.0 && this[i + 1] == 0.0) 0
+                else if (this[i] == 0.0) 1
+                else 2) * 3.0.pow(i / 2).toLong()
         }
+
+        return total
     }
+
+fun Network.calculateMove(game: Game, player: Player, seed: Long = makeSeed): Move {
+    val (normal, transform) = game.normal
+    val inputs = normal.rawEncode(player)
+    val moveRandom = Random(seed * inputs.encodeInput)
     val outputs = fire(inputs).last()
 
     val filtered = buildList {
         outputs.forEachIndexed { i, it ->
-            val stack = i.slotIndex(player.depth)
+            val stack = i.slotIndex(game.depth)
+            if (normal[stack].active) {
+                add(Pair(stack, it.coerceAtLeast(0.0)))
+            }
+        }
+    }
+
+    val normalSlot = filtered.randomBy(moveRandom) { it.second }.first
+    val slot = transform.inverse(normalSlot)
+
+    return Move(game, normal, inputs, slot, normalSlot)
+}
+
+fun Network.getChoices(game: Game, player: Player): List<Pair<Move, Double>> {
+    val (normal, transform) = game.normal
+    val inputs = normal.rawEncode(player)
+    val outputs = fire(inputs).last()
+
+    val filtered = buildList {
+        outputs.forEachIndexed { i, it ->
+            val stack = i.slotIndex(game.depth)
             if (normal[stack].active) {
                 add(Pair(stack, it.coerceAtLeast(0.0)))
             }
         }
     }.sortedByDescending { it.second }
-    val total = filtered.sumOf { it.second }
 
-    val normalSlot = if (total == 0.0) filtered.random().first
-    else filtered.first().first
-
-    val slot = transform.inverse(normalSlot)
-
-    return Move(player.game, normal, inputs, slot, normalSlot)
+    return filtered.map { Pair(Move(game, normal, inputs, transform.inverse(it.first), it.first), it.second) }
 }
-
-fun GamePlayer.makeMove(slotIndex: SlotIndex) = makeMove(game.positionToMove(slotIndex))
 
 data class Move(
     val originalGame: Game,
@@ -288,11 +403,11 @@ data class Move(
     val normalSlot: SlotIndex
 ) {
     override operator fun equals(other: Any?): Boolean = other is Move && encoded == other.encoded && slot == other.slot
+    val key get() = normalizedGame.encodeKey(normalSlot)
 }
 
+
 fun moveFromOriginal(player: GamePlayer, slot: SlotIndex) = moveFromOriginal(player.game, player.player, slot)
-
-
 fun moveFromOriginal(originalGame: Game, player: Player, slot: SlotIndex): Move {
     val (normalized, transform) = originalGame.normal
 
@@ -315,44 +430,4 @@ fun moveFromOriginal(originalGame: Game, player: Player, slot: SlotIndex): Move 
     }
 
     return Move(originalGame, normalized, inputs, slot, transform(slot))
-}
-
-data class CorrectionSet(val game: Game, val inputs: List1d, val moveSet: MutableSet<SlotIndex>) {
-    override fun toString() = moveSet.toString()
-}
-
-class GameMap {
-    class TeacherMap(var x: LastGame?, var o: LastGame?) {
-        data class LastGame(val history: List<Move>, val score: Double, val repeat: Boolean)
-
-        val complete: Boolean get() = x != null && o != null
-        val values get() = listOf(x, o)
-
-
-        operator fun get(player: Player) = when (player) {
-            Player.X -> x
-            Player.O -> o
-        }
-
-        operator fun set(player: Player, value: LastGame) = when (player) {
-            Player.X -> x = value
-            Player.O -> o = value
-        }
-    }
-
-    val map = mutableMapOf<Network, TeacherMap>()
-    val values = map.values
-
-    operator fun get(teacher: Network): TeacherMap {
-        val indexed = map[teacher]
-        return if (indexed == null) {
-            val out = TeacherMap(null, null)
-            map[teacher] = out
-            out
-        } else {
-            indexed
-        }
-    }
-
-
 }

@@ -128,6 +128,8 @@ class Game : Slot {
         return game
     }
 
+    operator fun invoke(move: Int, p: Player) = getMove(move, p)
+
     private fun internalPositionOf(move: Int): List<Int> {
 
         var move = move

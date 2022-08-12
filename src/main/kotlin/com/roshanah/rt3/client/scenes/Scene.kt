@@ -183,6 +183,12 @@ open class Scene(val program: Program, val transform: Matrix44) {
         }
 
     }
+
+    fun attachSaving(player: GamePlayer, onSave: (String) -> Unit) {
+        program.keyboard.keyDown.listen {
+            if (active && it.name == "s" && it.modifiers.contains(KeyModifier.CTRL)) onSave(player.serialize())
+        }
+    }
 }
 
 fun FontImageMap.width(text: String): Double = text.sumOf { characterWidth(it) }

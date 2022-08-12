@@ -14,13 +14,14 @@ import kotlin.Throws
 import java.io.IOException
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
+import java.lang.IllegalArgumentException
 import java.util.*
 import kotlin.math.pow
 
 class Host {
     private val idles: MutableSet<Connection> = HashSet<Connection>()
     private val games: MutableSet<HostedGame> = HashSet<HostedGame>()
-    private val server = aSocket(selectorManager).tcp().bind("127.0.0.1", 33584)
+    private val server = aSocket(selectorManager).tcp().bind("192.168.86.36", 33584)
 
     @Throws(IOException::class)
     internal fun run(scope: CoroutineScope) = scope.launch {
@@ -94,12 +95,17 @@ class Host {
                 if (unique) break
             }
             val p: Player = if (split[1] == "X") Player.X else Player.O
-            val game = HostedGame(c, GamePlayer(split[0]), p, number)
-            game.onFinish = { games.remove(game) }
-            games.add(game)
-            idles.remove(c)
-            c.broadcast("return: " + game.number)
-            println("new game created")
+            try {
+                val game = HostedGame(c, GamePlayer(split[0]), p, number)
+                game.onFinish = { games.remove(game) }
+                games.add(game)
+                idles.remove(c)
+                c.broadcast("return: " + game.number)
+                println("new game created")
+            } catch(_: IllegalArgumentException) {
+                c.broadcast("return:failed")
+                c.broadcast("info:Invalid game serial")
+            }
         }
         prefix("command") {
             prefix("exit") {
